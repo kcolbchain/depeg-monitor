@@ -7,6 +7,7 @@ from .config import MonitorConfig, StablecoinConfig
 from .sources.base import PriceSource
 from .sources.cex import BinanceSource, CoinbaseSource
 from .sources.dex import UniswapV3Source
+from .sources.curve import CurveSource
 from .alerts.base import Alert, AlertLevel
 from .alerts.console import ConsoleAlert
 from .alerts.webhook import WebhookAlert
@@ -28,6 +29,7 @@ class DepegMonitor:
             elif cex == "coinbase":
                 sources.append(CoinbaseSource())
         sources.append(UniswapV3Source(self.config.sources.dex.rpc_url))
+        sources.append(CurveSource(self.config.sources.dex.rpc_url))
         return sources
 
     def _build_alerts(self) -> list[Alert]:
