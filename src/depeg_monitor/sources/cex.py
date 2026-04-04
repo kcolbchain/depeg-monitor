@@ -1,4 +1,5 @@
 """CEX price sources — Binance and Coinbase public REST APIs."""
+from __future__ import annotations
 import aiohttp
 from .base import PriceSource
 

@@ -1,4 +1,5 @@
 """DEX price source — Uniswap V3 TWAP via public RPC."""
+from __future__ import annotations
 from web3 import Web3
 from .base import PriceSource
 
