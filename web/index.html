@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>depeg-monitor — live stablecoin peg dashboard</title>
+<meta name="description" content="Live USDT / USDC / DAI peg status across CEX + DEX sources. By kcolbchain." />
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #13161b;
+    --border: #23272f;
+    --fg: #e7e9ee;
+    --muted: #8a93a3;
+    --accent: #7dd3fc;
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --hot: #f87171;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { padding: 24px 32px; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; align-items:baseline; flex-wrap: wrap; gap: 12px; }
+  header h1 { margin: 0; font-size: 20px; }
+  header h1 .dot { color: var(--accent); }
+  header p { margin: 0; color: var(--muted); font-size: 13px; }
+  main { padding: 24px 32px; max-width: 1200px; margin: 0 auto; }
+  .controls { display:flex; gap:16px; margin-bottom: 20px; align-items:center; color: var(--muted); font-size: 12px; flex-wrap: wrap; }
+  .controls label { display:flex; gap:8px; align-items:center; }
+  .controls input[type=number] { width: 72px; background: var(--panel); border:1px solid var(--border); color: var(--fg); border-radius: 6px; padding: 4px 8px; font-family: var(--mono); }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .card { background: var(--panel); border:1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .card .top { display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; }
+  .card h2 { margin: 0; font-size: 18px; }
+  .chip { font-family: var(--mono); font-size: 11px; padding: 3px 8px; border-radius: 999px; background: #1f232b; color: var(--muted); }
+  .chip.ok { background: #0e2a1e; color: var(--ok); }
+  .chip.warn { background: #2a220e; color: var(--warn); }
+  .chip.hot { background: #2a1212; color: var(--hot); }
+  .big { font-family: var(--mono); font-size: 32px; margin: 4px 0 4px 0; }
+  .delta { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .delta.ok { color: var(--ok); }
+  .delta.warn { color: var(--warn); }
+  .delta.hot { color: var(--hot); }
+  .sources { display:grid; grid-template-columns: 1fr auto; gap: 4px 14px; padding-top: 10px; border-top: 1px solid var(--border); font-family: var(--mono); font-size: 12px; }
+  .sources .src { color: var(--muted); }
+  .sources .val.ok { color: var(--ok); }
+  .sources .val.warn { color: var(--warn); }
+  .sources .val.hot { color: var(--hot); }
+  svg.spark { display:block; width: 100%; height: 44px; margin-bottom: 6px; }
+  .peg-line { stroke: var(--border); stroke-dasharray: 3 3; }
+  .warn-line { stroke: var(--warn); stroke-dasharray: 2 4; opacity: 0.5; }
+  .hot-line { stroke: var(--hot); stroke-dasharray: 2 4; opacity: 0.5; }
+  .log { margin-top: 32px; background: var(--panel); border:1px solid var(--border); border-radius: 12px; padding: 16px 20px; }
+  .log h3 { margin:0 0 10px 0; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .log ul { list-style: none; padding: 0; margin: 0; font-family: var(--mono); font-size: 12px; }
+  .log li { padding: 4px 0; border-top: 1px solid var(--border); color: var(--muted); }
+  .log li:first-child { border-top: 0; }
+  .log li .lvl { display:inline-block; width: 48px; }
+  .log li.warn .lvl { color: var(--warn); }
+  .log li.hot .lvl { color: var(--hot); }
+  .log li.ok .lvl { color: var(--ok); }
+  footer { padding: 24px 32px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); margin-top: 48px; }
+  footer code { font-family: var(--mono); }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>depeg-monitor<span class="dot">.</span> <span style="color:var(--muted);font-weight:400">stablecoin peg dashboard</span></h1>
+    <p>Live price of USDC, USDT, DAI across Binance, Coinbase, and Uniswap via public APIs. Thresholds mirror the library default config.</p>
+  </div>
+  <div style="display:flex;gap:14px;align-items:center">
+    <span id="refreshBadge" class="chip">—</span>
+    <a href="https://github.com/kcolbchain/depeg-monitor">source</a>
+    <a href="https://docs.kcolbchain.com/depeg-monitor/">docs</a>
+  </div>
+</header>
+
+<main>
+  <div class="controls">
+    <label>Warn threshold <input type="number" id="warnBps" value="50" step="5" min="5" max="500" /> bps</label>
+    <label>Critical threshold <input type="number" id="critBps" value="100" step="5" min="5" max="1000" /> bps</label>
+    <label>Refresh <input type="number" id="pollSec" value="30" step="5" min="10" max="300" /> s</label>
+    <span id="countdown"></span>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="log">
+    <h3>Alert log</h3>
+    <ul id="log"><li class="ok"><span class="lvl">boot</span>dashboard started — waiting for first tick…</li></ul>
+  </div>
+</main>
+
+<footer>
+  Prices polled from
+  <a href="https://api.binance.com">Binance public API</a>,
+  <a href="https://api.coinbase.com">Coinbase public API</a>, and
+  <a href="https://api.coingecko.com">CoinGecko</a> (as a DEX-weighted proxy).
+  This dashboard is a browser-only preview of the full
+  <a href="https://github.com/kcolbchain/depeg-monitor">depeg-monitor</a> library, which runs server-side with
+  direct Uniswap V3 TWAP and Curve pool reads and pushes alerts to Discord/Slack/HTTP. The library and this
+  dashboard share the same threshold semantics: bps deviation from the configured peg, warning vs critical.
+</footer>
+
+<script>
+// ------------------------------------------------------------ config
+const COINS = [
+  { symbol: 'USDC', peg: 1.0, color: '#2775CA' },
+  { symbol: 'USDT', peg: 1.0, color: '#26A17B' },
+  { symbol: 'DAI',  peg: 1.0, color: '#F5AC37' },
+];
+
+const SOURCES = {
+  // return { symbol: price } for every symbol it knows
+  async binance() {
+    const syms = ['USDCUSDT', 'DAIUSDT']; // USDT quote, USDT itself = 1 by definition on Binance
+    const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbols=' + encodeURIComponent(JSON.stringify(syms)));
+    const arr = await res.json();
+    const out = { USDT: 1.0 };
+    for (const { symbol, price } of arr) {
+      if (symbol === 'USDCUSDT') out.USDC = parseFloat(price);
+      if (symbol === 'DAIUSDT')  out.DAI  = parseFloat(price);
+    }
+    return out;
+  },
+  async coinbase() {
+    // Coinbase uses USD as quote
+    const res = await fetch('https://api.coinbase.com/v2/exchange-rates?currency=USD');
+    const j = await res.json();
+    const r = j.data.rates;
+    // rates[X] = X per 1 USD → invert to get USD per X.
+    const usd = (s) => r[s] ? (1 / parseFloat(r[s])) : NaN;
+    return { USDC: usd('USDC'), USDT: usd('USDT'), DAI: usd('DAI') };
+  },
+  async coingecko() {
+    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=usd-coin,tether,dai&vs_currencies=usd');
+    const j = await res.json();
+    return {
+      USDC: j['usd-coin'] ? j['usd-coin'].usd : NaN,
+      USDT: j['tether']   ? j['tether'].usd   : NaN,
+      DAI:  j['dai']      ? j['dai'].usd      : NaN,
+    };
+  },
+};
+
+// ------------------------------------------------------------ state
+const WINDOW = 60;
+const history = Object.fromEntries(COINS.map(c => [c.symbol, []]));   // { SYM: [{t, price}...] }
+const lastBySource = Object.fromEntries(COINS.map(c => [c.symbol, {}]));
+let pollTimer = null;
+
+// ------------------------------------------------------------ ui
+function card(c) {
+  return `
+    <div class="card" data-symbol="${c.symbol}" style="border-top: 2px solid ${c.color}">
+      <div class="top">
+        <h2>${c.symbol}</h2>
+        <span class="chip" data-role="status">…</span>
+      </div>
+      <div class="big" data-role="price">—</div>
+      <div class="delta" data-role="delta">± — bps vs $${c.peg.toFixed(2)} peg</div>
+      <svg class="spark" data-role="spark" viewBox="0 0 100 44" preserveAspectRatio="none"></svg>
+      <div class="sources">
+        <span class="src">binance</span>  <span class="val" data-src="binance">—</span>
+        <span class="src">coinbase</span> <span class="val" data-src="coinbase">—</span>
+        <span class="src">coingecko</span><span class="val" data-src="coingecko">—</span>
+      </div>
+    </div>`;
+}
+document.getElementById('grid').innerHTML = COINS.map(card).join('');
+
+function bpsFromPeg(price, peg) {
+  if (!Number.isFinite(price)) return NaN;
+  return ((price - peg) / peg) * 10_000;
+}
+function severity(absBps) {
+  const warn = parseFloat(document.getElementById('warnBps').value);
+  const crit = parseFloat(document.getElementById('critBps').value);
+  if (absBps >= crit) return 'hot';
+  if (absBps >= warn) return 'warn';
+  return 'ok';
+}
+function setStatusChip(el, sev) {
+  el.className = 'chip ' + sev;
+  el.textContent = sev === 'ok' ? 'pegged' : sev === 'warn' ? 'warn' : 'depeg';
+}
+function drawSpark(el, points, peg) {
+  if (!points.length) { el.innerHTML = ''; return; }
+  const warnBps = parseFloat(document.getElementById('warnBps').value);
+  const critBps = parseFloat(document.getElementById('critBps').value);
+  // Fix visual window to ±200 bps so sparks remain comparable across coins.
+  const range = 200; // bps
+  const toY = (bps) => {
+    const clamped = Math.max(-range, Math.min(range, bps));
+    return (1 - (clamped + range) / (2 * range)) * 42 + 1;
+  };
+  const step = 100 / Math.max(1, points.length - 1);
+  const d = points.map((p, i) => {
+    const bps = bpsFromPeg(p.price, peg);
+    return `${i === 0 ? 'M' : 'L'} ${(i * step).toFixed(2)} ${toY(bps).toFixed(2)}`;
+  }).join(' ');
+  el.innerHTML = `
+    <line class="peg-line" x1="0" y1="${toY(0)}" x2="100" y2="${toY(0)}" />
+    <line class="warn-line" x1="0" y1="${toY(warnBps)}" x2="100" y2="${toY(warnBps)}" />
+    <line class="warn-line" x1="0" y1="${toY(-warnBps)}" x2="100" y2="${toY(-warnBps)}" />
+    <line class="hot-line"  x1="0" y1="${toY(critBps)}" x2="100" y2="${toY(critBps)}" />
+    <line class="hot-line"  x1="0" y1="${toY(-critBps)}" x2="100" y2="${toY(-critBps)}" />
+    <path d="${d}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />`;
+}
+
+function appendLog(level, msg) {
+  const ul = document.getElementById('log');
+  const li = document.createElement('li');
+  li.className = level;
+  li.innerHTML = `<span class="lvl">${level}</span>[${new Date().toLocaleTimeString()}] ${msg}`;
+  ul.insertBefore(li, ul.firstChild);
+  while (ul.children.length > 20) ul.removeChild(ul.lastChild);
+}
+
+// ------------------------------------------------------------ polling
+let prevSeverity = Object.fromEntries(COINS.map(c => [c.symbol, 'ok']));
+
+async function tick() {
+  const results = await Promise.allSettled([
+    SOURCES.binance(),
+    SOURCES.coinbase(),
+    SOURCES.coingecko(),
+  ]);
+  const [bin, cb, cg] = results.map(r => r.status === 'fulfilled' ? r.value : null);
+
+  const t = Date.now();
+
+  for (const c of COINS) {
+    const per = { binance: bin?.[c.symbol], coinbase: cb?.[c.symbol], coingecko: cg?.[c.symbol] };
+    lastBySource[c.symbol] = per;
+
+    // Aggregate: median of available sources.
+    const vals = Object.values(per).filter(v => Number.isFinite(v));
+    const price = vals.length ? median(vals) : NaN;
+
+    const hist = history[c.symbol];
+    if (Number.isFinite(price)) {
+      hist.push({ t, price });
+      if (hist.length > WINDOW) hist.shift();
+    }
+
+    const bps = bpsFromPeg(price, c.peg);
+    const abs = Math.abs(bps);
+    const sev = Number.isFinite(bps) ? severity(abs) : 'warn';
+
+    const el = document.querySelector(`[data-symbol=${c.symbol}]`);
+    el.querySelector('[data-role=price]').innerHTML =
+      Number.isFinite(price)
+        ? '$' + price.toFixed(4)
+        : '<span style="color:var(--muted);font-size:16px">no data</span>';
+
+    const deltaEl = el.querySelector('[data-role=delta]');
+    deltaEl.className = 'delta ' + sev;
+    deltaEl.textContent = Number.isFinite(bps)
+      ? `${bps >= 0 ? '+' : ''}${bps.toFixed(1)} bps vs $${c.peg.toFixed(2)} peg`
+      : `— bps vs $${c.peg.toFixed(2)} peg`;
+
+    setStatusChip(el.querySelector('[data-role=status]'), sev);
+
+    for (const srcName of ['binance', 'coinbase', 'coingecko']) {
+      const v = per[srcName];
+      const valEl = el.querySelector(`[data-src=${srcName}]`);
+      if (Number.isFinite(v)) {
+        const sBps = bpsFromPeg(v, c.peg);
+        const sSev = severity(Math.abs(sBps));
+        valEl.className = 'val ' + sSev;
+        valEl.textContent = '$' + v.toFixed(4) + '  (' + (sBps >= 0 ? '+' : '') + sBps.toFixed(1) + ' bps)';
+      } else {
+        valEl.className = 'val';
+        valEl.textContent = '—';
+      }
+    }
+
+    drawSpark(el.querySelector('[data-role=spark]'), hist, c.peg);
+
+    // Alert transitions
+    if (sev !== prevSeverity[c.symbol]) {
+      if (sev === 'hot') appendLog('hot',  `${c.symbol} CRITICAL depeg: ${bps.toFixed(1)} bps`);
+      else if (sev === 'warn') appendLog('warn', `${c.symbol} warning: ${bps.toFixed(1)} bps`);
+      else appendLog('ok', `${c.symbol} re-pegged: ${bps.toFixed(1)} bps`);
+      prevSeverity[c.symbol] = sev;
+    }
+  }
+}
+
+function median(arr) {
+  const s = [...arr].sort((a, b) => a - b);
+  const n = s.length;
+  return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+}
+
+// ------------------------------------------------------------ scheduler
+let nextAt = 0;
+async function runTick() {
+  document.getElementById('refreshBadge').textContent = 'refreshing…';
+  try {
+    await tick();
+    document.getElementById('refreshBadge').textContent = 'updated ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    document.getElementById('refreshBadge').textContent = 'error';
+    appendLog('hot', 'tick failed: ' + e.message);
+  }
+}
+function reschedule() {
+  if (pollTimer) clearInterval(pollTimer);
+  const ms = Math.max(10, parseInt(document.getElementById('pollSec').value, 10)) * 1000;
+  nextAt = Date.now() + ms;
+  pollTimer = setInterval(() => { runTick(); nextAt = Date.now() + ms; }, ms);
+}
+document.getElementById('pollSec').addEventListener('change', reschedule);
+document.getElementById('warnBps').addEventListener('change', () => tick());
+document.getElementById('critBps').addEventListener('change', () => tick());
+
+runTick();
+reschedule();
+
+// Countdown display
+setInterval(() => {
+  const remain = Math.max(0, Math.round((nextAt - Date.now()) / 1000));
+  document.getElementById('countdown').textContent = remain ? `next refresh in ${remain}s` : '';
+}, 1000);
+</script>
+</body>
+</html>

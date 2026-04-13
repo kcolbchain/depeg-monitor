@@ -15,6 +15,14 @@ pip install -e .
 depeg-monitor --config config/default.yaml
 ```
 
+## Live dashboard
+
+A zero-build static dashboard lives in [`web/`](web/). Run it locally with
+`python3 -m http.server -d web 8080` — it polls Binance, Coinbase, and
+CoinGecko every 30s and renders median-aggregated peg status with
+adjustable warn / critical thresholds (same bps semantics as this library's
+`config/default.yaml`). See [`web/README.md`](web/README.md) for details.
+
 ## Features
 
 - **Multi-source**: Uniswap V3 TWAP, Curve pool prices, Binance/Coinbase spot APIs
