@@ -1,5 +1,7 @@
 """Configuration model using pydantic."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel
 from typing import Optional
 
@@ -24,6 +26,9 @@ class AlertsConfig(BaseModel):
     console: bool = True
     discord_webhook: Optional[str] = None
     slack_webhook: Optional[str] = None
+    # Telegram alert configuration
+    telegram_bot_token: Optional[str] = None
+    telegram_chat_id: Optional[str] = None
 
 
 class MonitorConfig(BaseModel):

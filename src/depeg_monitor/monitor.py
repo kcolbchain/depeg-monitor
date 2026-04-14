@@ -1,4 +1,5 @@
 """Core monitoring loop."""
+
 import asyncio
 import logging
 from typing import Sequence
@@ -10,6 +11,7 @@ from .sources.dex import UniswapV3Source
 from .alerts.base import Alert, AlertLevel
 from .alerts.console import ConsoleAlert
 from .alerts.webhook import WebhookAlert
+from .alerts.telegram import TelegramAlert
 
 logger = logging.getLogger("depeg-monitor")
 
@@ -38,6 +40,14 @@ class DepegMonitor:
             alerts.append(WebhookAlert(self.config.alerts.discord_webhook, "discord"))
         if self.config.alerts.slack_webhook:
             alerts.append(WebhookAlert(self.config.alerts.slack_webhook, "slack"))
+        # Telegram alert support
+        if self.config.alerts.telegram_bot_token and self.config.alerts.telegram_chat_id:
+            alerts.append(
+                TelegramAlert(
+                    self.config.alerts.telegram_bot_token,
+                    self.config.alerts.telegram_chat_id,
+                )
+            )
         return alerts
 
     async def check_once(self) -> None:
@@ -49,16 +59,13 @@ class DepegMonitor:
             price = await source.get_price(coin.symbol)
             if price is None:
                 continue
-
             deviation = abs(price - coin.peg) / coin.peg
-
             if deviation >= coin.critical_threshold:
                 level = AlertLevel.CRITICAL
             elif deviation >= coin.warn_threshold:
                 level = AlertLevel.WARN
             else:
                 continue  # Within normal range
-
             for alert in self.alerts:
                 await alert.send(level, coin.symbol, price, coin.peg, source.name)
 
