@@ -13,6 +13,7 @@ from .alerts.base import Alert, AlertLevel
 from .alerts.console import ConsoleAlert
 from .alerts.webhook import WebhookAlert
 from .alerts.telegram import TelegramAlert
+from .database_alert import DatabaseAlert
 
 logger = logging.getLogger("depeg-monitor")
 
@@ -51,6 +52,9 @@ class DepegMonitor:
                     self.config.alerts.telegram_chat_id,
                 )
             )
+        # SQLite event logging
+        if self.config.alerts.db_path:
+            alerts.append(DatabaseAlert(self.config.alerts.db_path))
         return alerts
 
     async def check_once(self) -> None:
