@@ -20,7 +20,7 @@ depeg-monitor --config config/default.yaml
 A zero-build static dashboard lives in [`web/`](web/). Run it locally with
 `python3 -m http.server -d web 8080` — it polls Binance, Coinbase, and
 CoinGecko every 30s and renders median-aggregated peg status with
-adjustable warn / critical thresholds (same bps semantics as this library's
+adjustable warn / critical thresholds (same threshold semantics as this library's
 `config/default.yaml`). See [`web/README.md`](web/README.md) for details.
 
 ## Features
