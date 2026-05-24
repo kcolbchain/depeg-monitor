@@ -4,83 +4,71 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>depeg-monitor — live stablecoin peg dashboard</title>
-<meta name="description" content="Live & historical peg deviation for the top stablecoins across CEX + DEX sources. By kcolbchain." />
+<meta name="description" content="Open-source depeg dashboard — per-card charts, analytics indicators, sandbox for local algorithms, and the depeg-oracles spec. By kcolbchain." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="tokens.css" />
+<script defer src="indicators.js"></script>
 <style>
-  /* Brand idiom — see github.com/kcolbchain/brand/pages/ for the component kit. */
+  /* Brand idiom — see github.com/kcolbchain/brand/pages/ */
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--fg-muted); font-family: var(--font); font-size: var(--t-2); line-height: 1.5; -webkit-font-smoothing: antialiased; }
   a { color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--line); transition: border-color .15s, color .15s; }
   a:hover { color: var(--mark); border-bottom-color: var(--mark); }
 
   /* Header */
-  header {
-    position: sticky; top: 0; z-index: 10;
-    display: flex; justify-content: space-between; align-items: center;
-    padding: var(--s-3) var(--s-4);
-    background: rgba(11, 11, 13, 0.85);
-    backdrop-filter: blur(8px);
-    border-bottom: 1px solid var(--line);
-    font-size: var(--t-1);
-    gap: var(--s-3); flex-wrap: wrap;
-  }
+  header { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; padding: var(--s-3) var(--s-4); background: rgba(11, 11, 13, 0.85); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); font-size: var(--t-1); gap: var(--s-3); flex-wrap: wrap; }
   header .wm { color: var(--fg); font-weight: 500; border-bottom: none; }
   header .wm em { color: var(--mark); font-style: normal; font-weight: 700; }
-  header nav { display: flex; gap: var(--s-3); align-items: center; }
+  header nav { display: flex; gap: var(--s-3); align-items: center; flex-wrap: wrap; }
   header nav a { color: var(--fg-faint); border-bottom: none; }
   header nav a:hover { color: var(--fg); border-bottom: none; }
 
   /* Layout */
   main { max-width: var(--col); margin: 0 auto; padding: var(--s-5) var(--s-4) var(--s-6); }
   section { margin-bottom: var(--s-5); }
-  h2 {
-    font-size: var(--t-1); font-weight: 500;
-    text-transform: uppercase; letter-spacing: 0.12em;
-    color: var(--fg-faint);
-    margin: 0 0 var(--s-3);
-  }
+  h2 { font-size: var(--t-1); font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; color: var(--fg-faint); margin: 0 0 var(--s-3); }
   h2::before { content: '— '; color: var(--fg-faint); }
   h2 .meta { float: right; color: var(--fg-faint); text-transform: none; letter-spacing: 0; font-size: var(--t-1); }
 
-  /* Chip — see brand/pages/chips.html */
-  .chip {
-    display: inline-block; padding: 3px 8px; border-radius: 999px;
-    background: var(--bg-elev); color: var(--fg-muted);
-    font-family: var(--font); font-size: var(--t-1);
-  }
+  /* Chips */
+  .chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px; background: var(--bg-elev); color: var(--fg-muted); font-family: var(--font); font-size: var(--t-1); }
   .chip.ok   { background: var(--ok-soft);   color: var(--ok); }
   .chip.warn { background: var(--warn-soft); color: var(--warn); }
   .chip.hot  { background: var(--hot-soft);  color: var(--hot); }
   .chip.mark { background: var(--mark-soft); color: var(--mark); }
   .chip.dot::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 6px; vertical-align: 1px; }
 
-  /* Controls — see brand/pages/forms.html */
+  /* Source-status chips have a fixed-width name + last-tick age */
+  .src-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--bg-elev); border: 1px solid var(--line); font-family: var(--font); font-size: var(--t-1); color: var(--fg-muted); }
+  .src-chip .name { color: var(--fg); }
+  .src-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fg-faint); }
+  .src-chip.ok .dot   { background: var(--ok); }
+  .src-chip.warn .dot { background: var(--warn); }
+  .src-chip.hot .dot  { background: var(--hot); }
+  .src-chip .age      { color: var(--fg-faint); font-variant-numeric: tabular-nums; }
+
+  /* Controls */
   .controls { display: flex; flex-wrap: wrap; gap: var(--s-4); align-items: flex-end; padding: var(--s-3) 0; }
   .label-row { display: inline-flex; flex-direction: column; gap: 4px; color: var(--fg-faint); font-size: var(--t-1); text-transform: uppercase; letter-spacing: 0.08em; }
-  .label-row .input, .label-row textarea, .label-row select {
-    font-family: var(--font); font-size: var(--t-2);
-    color: var(--fg); background: var(--bg-elev);
-    border: 1px solid var(--line); border-radius: var(--radius);
-    padding: 6px 10px; line-height: 1.4;
-  }
+  .label-row .input, .label-row textarea, .label-row select { font-family: var(--font); font-size: var(--t-2); color: var(--fg); background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px; line-height: 1.4; }
   .label-row .input:focus, .label-row textarea:focus, .label-row select:focus { outline: none; border-color: var(--fg-muted); }
   .label-row .input.num { width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
   .label-row textarea { width: 320px; min-height: 38px; resize: vertical; font-variant-numeric: tabular-nums; }
-  .label-row .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-  .label-row .seg button {
-    font-family: var(--font); font-size: var(--t-2);
-    color: var(--fg-muted); background: var(--bg-elev);
-    border: none; padding: 6px 12px; cursor: pointer;
-    border-right: 1px solid var(--line);
-  }
+  .label-row .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; flex-wrap: wrap; }
+  .label-row .seg button { font-family: var(--font); font-size: var(--t-2); color: var(--fg-muted); background: var(--bg-elev); border: none; padding: 6px 12px; cursor: pointer; border-right: 1px solid var(--line); }
   .label-row .seg button:last-child { border-right: none; }
   .label-row .seg button:hover { color: var(--fg); }
   .label-row .seg button.on { color: var(--bg); background: var(--mark); }
 
-  /* Chart — see brand/pages/charts.html */
+  .ind-list { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+  .ind-list label { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg-elev); color: var(--fg-muted); font-size: var(--t-1); cursor: pointer; }
+  .ind-list label.on { color: var(--fg); border-color: var(--fg-muted); }
+  .ind-list label input { accent-color: var(--mark); }
+  .ind-list label .swatch { display: inline-block; width: 10px; height: 2px; background: currentColor; }
+
+  /* Chart shared rules */
   .chart { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s-3) var(--s-4) var(--s-4); }
   .chart .chart-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--s-3); flex-wrap: wrap; gap: var(--s-3); }
   .chart h3 { margin: 0; font-size: var(--t-1); font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; color: var(--fg-faint); }
@@ -88,45 +76,69 @@
   .chart .legend span { white-space: nowrap; }
   .chart .legend .swatch { display: inline-block; width: 10px; height: 2px; vertical-align: 3px; margin-right: 6px; background: currentColor; }
   svg.ts { display: block; width: 100%; height: 280px; }
+  svg.card-chart { display: block; width: 100%; height: 140px; }
   svg.spark { display: block; width: 100%; height: 44px; }
   svg .series { fill: none; stroke-width: 1.4; stroke-linejoin: round; }
-  svg .series.dim { opacity: 0.35; }
+  svg .series.dim { opacity: 0.25; }
+  svg .indicator { fill: none; stroke-width: 1.2; stroke-linejoin: round; opacity: 0.8; }
+  svg .indicator.dashed { stroke-dasharray: 4 3; }
   svg .peg  { stroke: var(--line); stroke-dasharray: 3 3; }
   svg .warn { stroke: var(--warn); stroke-dasharray: 2 4; opacity: 0.4; }
   svg .hot  { stroke: var(--hot);  stroke-dasharray: 2 4; opacity: 0.4; }
   svg .axis-label { font-family: var(--font); font-size: 9px; fill: var(--fg-faint); }
 
-  /* Cards — see brand/pages/cards.html */
+  /* Cards */
   .grid { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-  .card { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s-3) var(--s-4); }
-  .card.dim { opacity: 0.6; }
-  .card .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s-1); }
+  body.view-individual .grid { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+  body.view-joint .card .card-chart-wrap { display: none; }
+  body.view-individual .joint-only { display: none; }
+  .card { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s-3) var(--s-4); display: flex; flex-direction: column; gap: 6px; }
+  .card .top { display: flex; justify-content: space-between; align-items: center; }
   .card h3 { margin: 0; font-size: var(--t-3); font-weight: 500; color: var(--fg); }
   .card .metric { font-size: var(--t-4); color: var(--fg); margin: 2px 0; font-variant-numeric: tabular-nums; }
   .card .delta { font-size: var(--t-1); color: var(--fg-muted); font-variant-numeric: tabular-nums; }
   .card .delta.ok   { color: var(--ok); }
   .card .delta.warn { color: var(--warn); }
   .card .delta.hot  { color: var(--hot); }
-  .card .sources { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; padding-top: var(--s-2); margin-top: var(--s-2); border-top: 1px solid var(--line); font-size: var(--t-1); }
+  .card .card-chart-wrap { margin-top: 4px; }
+  .card .ind-legend { display: flex; gap: var(--s-2); flex-wrap: wrap; font-size: 10px; color: var(--fg-faint); margin-top: 4px; }
+  .card .ind-legend span .swatch { display: inline-block; width: 10px; height: 2px; vertical-align: 2px; margin-right: 4px; background: currentColor; }
+  .card .sources { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; padding-top: var(--s-2); margin-top: 4px; border-top: 1px solid var(--line); font-size: var(--t-1); }
   .card .sources .src { color: var(--fg-faint); }
   .card .sources .val { color: var(--fg-muted); text-align: right; font-variant-numeric: tabular-nums; }
   .card .sources .val.ok   { color: var(--ok); }
   .card .sources .val.warn { color: var(--warn); }
   .card .sources .val.hot  { color: var(--hot); }
 
-  /* Events table — see brand/pages/tables.html */
+  /* Sandbox */
+  .sandbox { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s-3) var(--s-4); }
+  .sandbox .head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); flex-wrap: wrap; margin-bottom: var(--s-3); }
+  .sandbox .head h3 { margin: 0; font-size: var(--t-1); font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; color: var(--fg-faint); }
+  .sandbox .head .actions { display: flex; gap: var(--s-2); align-items: center; }
+  .sandbox textarea { width: 100%; min-height: 160px; font-family: var(--font); font-size: var(--t-1); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s-2) var(--s-3); line-height: 1.5; resize: vertical; }
+  .sandbox textarea:focus { outline: none; border-color: var(--fg-muted); }
+  .sandbox .docs { margin-top: var(--s-2); color: var(--fg-faint); font-size: var(--t-1); }
+  .sandbox .docs code { color: var(--fg); }
+  .btn { display: inline-flex; align-items: center; gap: var(--s-2); padding: 6px 14px; font-family: var(--font); font-size: var(--t-2); font-weight: 500; border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg-elev); color: var(--fg); cursor: pointer; }
+  .btn:hover { border-color: var(--fg-muted); }
+  .btn.primary { background: var(--mark); color: var(--bg); border-color: var(--mark); }
+  .btn.primary:hover { background: #fde879; border-color: #fde879; }
+  .btn.ghost { background: transparent; color: var(--fg-muted); }
+  .btn.ghost:hover { color: var(--fg); }
+
+  /* Events table */
   table.data { width: 100%; border-collapse: collapse; font-size: var(--t-2); color: var(--fg); }
   table.data th { font-size: var(--t-1); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-faint); text-align: left; padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--line); }
   table.data td { padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--line); color: var(--fg-muted); }
   table.data tr:last-child td { border-bottom: none; }
   table.data td.fg { color: var(--fg); }
   table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  table.data td.ok   { color: var(--ok); }
+  table.data td.ok { color: var(--ok); }
   table.data td.warn { color: var(--warn); }
-  table.data td.hot  { color: var(--hot); }
+  table.data td.hot { color: var(--hot); }
   table.data .empty { color: var(--fg-faint); text-align: center; padding: var(--s-4); }
 
-  /* Log — see brand/pages/alerts.html */
+  /* Log */
   .log { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s-3) var(--s-4); }
   .log ul { list-style: none; padding: 0; margin: 0; font-size: var(--t-1); max-height: 240px; overflow-y: auto; }
   .log li { padding: 5px 0; border-top: 1px solid var(--line); color: var(--fg-muted); display: grid; grid-template-columns: 56px 84px 1fr; gap: var(--s-2); align-items: baseline; }
@@ -138,8 +150,8 @@
   .log li .ts        { color: var(--fg-faint); font-variant-numeric: tabular-nums; }
   .log li .msg       { color: var(--fg); }
 
-  /* Footer */
   footer { padding: var(--s-4); color: var(--fg-faint); font-size: var(--t-1); border-top: 1px solid var(--line); max-width: var(--col); margin: 0 auto; }
+  footer code { color: var(--fg-muted); }
 
   @media (max-width: 640px) {
     .chart .legend { max-width: 100%; justify-content: flex-start; }
@@ -147,12 +159,15 @@
   }
 </style>
 </head>
-<body>
+<body class="view-individual">
 
 <header>
   <a class="wm" href="https://kcolbchain.com"><em>kcolb</em>chain &nbsp;/&nbsp; depeg-monitor</a>
-  <nav>
-    <span id="refreshBadge" class="chip">—</span>
+  <nav id="srcChips">
+    <span class="src-chip" data-src="binance"><span class="dot"></span><span class="name">binance</span><span class="age">—</span></span>
+    <span class="src-chip" data-src="coinbase"><span class="dot"></span><span class="name">coinbase</span><span class="age">—</span></span>
+    <span class="src-chip" data-src="coingecko"><span class="dot"></span><span class="name">coingecko</span><span class="age">—</span></span>
+    <a href="https://github.com/kcolbchain/depeg-monitor/blob/main/docs/DEPEG_ORACLES.md">oracles</a>
     <a href="https://github.com/kcolbchain/depeg-monitor">source</a>
     <a href="https://github.com/kcolbchain/brand">brand</a>
   </nav>
@@ -167,20 +182,16 @@
         coins
         <textarea id="coinsInput" spellcheck="false">USDC, USDT, DAI, FDUSD, PYUSD, USDe, FRAX, crvUSD, GHO, LUSD, TUSD, USDP, GUSD, USDD, sUSD, RLUSD, USDS, USD0, sDAI, agEUR</textarea>
       </label>
-      <label class="label-row">
-        warn
-        <span><input class="input num" type="number" id="warnBps" value="50" step="5" min="5" max="500" /> bps</span>
+      <label class="label-row">warn<span><input class="input num" type="number" id="warnBps" value="50" step="5" min="5" max="500" /> bps</span></label>
+      <label class="label-row">critical<span><input class="input num" type="number" id="critBps" value="100" step="5" min="5" max="1000" /> bps</span></label>
+      <label class="label-row">refresh<span><input class="input num" type="number" id="pollSec" value="5" step="1" min="1" max="60" /> s</span></label>
+      <label class="label-row">view
+        <span class="seg" id="viewSeg">
+          <button data-view="individual" class="on">individual</button>
+          <button data-view="joint">joint</button>
+        </span>
       </label>
-      <label class="label-row">
-        critical
-        <span><input class="input num" type="number" id="critBps" value="100" step="5" min="5" max="1000" /> bps</span>
-      </label>
-      <label class="label-row">
-        refresh
-        <span><input class="input num" type="number" id="pollSec" value="5" step="1" min="1" max="60" /> s</span>
-      </label>
-      <label class="label-row">
-        mode
+      <label class="label-row">mode
         <span class="seg" id="modeSeg">
           <button data-mode="live" class="on">live</button>
           <button data-mode="1d">1d</button>
@@ -194,10 +205,15 @@
   </section>
 
   <section>
-    <h2>peg deviation <span class="meta" id="chartMeta"></span></h2>
+    <h2>indicators <span class="meta">overlays run client-side on the loaded series — see <a href="https://github.com/kcolbchain/depeg-monitor/blob/main/docs/DEPEG_ORACLES.md">spec</a></span></h2>
+    <div class="ind-list" id="indList"></div>
+  </section>
+
+  <section class="joint-only">
+    <h2>peg deviation — joint <span class="meta" id="chartMeta"></span></h2>
     <div class="chart">
       <div class="chart-head">
-        <h3 id="chartTitle">live · last 60 ticks</h3>
+        <h3 id="chartTitle">live · last N ticks</h3>
         <div class="legend" id="legend"></div>
       </div>
       <svg class="ts" id="tsChart" viewBox="0 0 800 280" preserveAspectRatio="none"></svg>
@@ -205,7 +221,47 @@
   </section>
 
   <section>
-    <h2>notable events <span class="meta" id="eventsMeta">peak deviation windows above critical</span></h2>
+    <h2>coins <span class="meta" id="coinsMeta"></span></h2>
+    <div class="grid" id="coinGrid"></div>
+  </section>
+
+  <section>
+    <h2>sandbox <span class="meta">your function, run client-side. plotted as an extra overlay on every card.</span></h2>
+    <div class="sandbox">
+      <div class="head">
+        <h3>indicator(series, peg, perSource, i) → [{t, value}]</h3>
+        <div class="actions">
+          <select class="input" id="sandboxSample">
+            <option value="">— sample —</option>
+            <option value="ewma_bps">EWMA of bps</option>
+            <option value="rolling_max">rolling max-abs deviation</option>
+            <option value="cusum">CUSUM of returns</option>
+            <option value="lag">lagged median</option>
+          </select>
+          <button class="btn ghost" id="sandboxClear">clear</button>
+          <button class="btn primary" id="sandboxRun">run</button>
+        </div>
+      </div>
+      <textarea id="sandboxCode" spellcheck="false">// series:    [{t, price}, ...] for the active coin
+// peg:       configured peg (e.g. 1.0)
+// perSource: { binance: [{t, price}], coinbase: [...], coingecko: [...] }
+// i:         the indicators module — i.ewma, i.zscore, i.bollinger, i.volatility,
+//            i.drawdown, i.sourceDivergence, i.recoveryTime, i.bps, i.asBps
+//
+// Return: [{t, value}, ...] in bps. Plotted on every coin card.
+function indicator(series, peg, perSource, i) {
+  // Default: EWMA(α=0.1) of bps deviation. Replace with anything you want.
+  const smoothed = i.ewma(series, { alpha: 0.1 });
+  return i.asBps(smoothed, peg);
+}</textarea>
+      <div class="docs">
+        Code runs in a sandboxed <code>Function()</code> in your own tab. Throws are caught and logged; nothing is sent to a server. The full <a href="https://github.com/kcolbchain/depeg-monitor/blob/main/web/indicators.js"><code>indicators.js</code></a> module is exposed as the <code>i</code> argument.
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>notable events <span class="meta">peak deviation windows above critical · load 7d+ history to populate</span></h2>
     <div class="chart" style="padding: 0; overflow: hidden;">
       <table class="data" id="eventsTable">
         <thead>
@@ -226,11 +282,6 @@
   </section>
 
   <section>
-    <h2>coins <span class="meta" id="coinsMeta"></span></h2>
-    <div class="grid" id="coinGrid"></div>
-  </section>
-
-  <section>
     <h2>alert log</h2>
     <div class="log">
       <ul id="log"><li class="ok"><span class="lvl">boot</span><span class="ts" id="bootTs">--:--:--</span><span class="msg">dashboard started — waiting for first tick…</span></li></ul>
@@ -243,55 +294,61 @@
   Live prices from
   <a href="https://api.binance.com">Binance</a>,
   <a href="https://api.coinbase.com">Coinbase</a>, and
-  <a href="https://api.coingecko.com">CoinGecko</a>; historical from CoinGecko's
-  <code>/coins/{id}/market_chart</code> (granularity auto: ≤1d 5-min, ≤90d hourly, &gt;90d daily). The full
-  <a href="https://github.com/kcolbchain/depeg-monitor">depeg-monitor</a> library runs server-side with direct
-  Uniswap V3 + Curve reads and pushes alerts to Discord/Slack/Telegram. Visual identity from
-  <a href="https://github.com/kcolbchain/brand">kcolbchain/brand</a>.
+  <a href="https://api.coingecko.com">CoinGecko</a>; CoinGecko polls at 20s to stay under the free-tier rate limit, the CEXes at the configured interval (default 5s). Historical via CoinGecko's <code>/coins/{id}/market_chart</code> (auto-granularity ≤1d 5-min, ≤90d hourly, &gt;90d daily). Each observation is exposed at <code>window.depegMonitor.lastObservations</code> in the
+  <a href="https://github.com/kcolbchain/depeg-monitor/blob/main/docs/DEPEG_ORACLES.md">depeg-oracles wire format</a>. The full <a href="https://github.com/kcolbchain/depeg-monitor">depeg-monitor</a> library runs server-side with direct Uniswap V3 + Curve reads. Visuals from <a href="https://github.com/kcolbchain/brand">kcolbchain/brand</a>.
 </footer>
 
 <script>
 // ============================================================================
-// COINS — top stablecoins. Each entry: { symbol, peg, id (CoinGecko id),
-// binance? (USDT-pair), coinbase? (USD-pair), color (series hue) }.
-// `id` is the CoinGecko coin id used for /simple/price and /market_chart.
-// `binance`/`coinbase` are populated only when the CEX has a live pair.
+// COIN_REGISTRY — top 20 stablecoins. Add an entry to extend coverage.
+// Fields: id (CoinGecko id), peg, binance pair (USDT-quoted, or null),
+// coinbase pair (USD-quoted, or null), color (series stroke).
 // ============================================================================
 const COIN_REGISTRY = {
-  USDC:  { id: 'usd-coin',              peg: 1.0, binance: 'USDCUSDT', coinbase: 'USDC-USD', color: '#6aa3e0' },
-  USDT:  { id: 'tether',                peg: 1.0, binance: null,       coinbase: 'USDT-USD', color: '#6ec07a' },
-  DAI:   { id: 'dai',                   peg: 1.0, binance: null,       coinbase: 'DAI-USD',  color: '#f5e03a' },
-  FDUSD: { id: 'first-digital-usd',     peg: 1.0, binance: 'FDUSDUSDT', coinbase: null,      color: '#d9a05b' },
-  PYUSD: { id: 'paypal-usd',            peg: 1.0, binance: null,       coinbase: 'PYUSD-USD', color: '#4f9dd8' },
-  USDe:  { id: 'ethena-usde',           peg: 1.0, binance: 'USDEUSDT', coinbase: null,       color: '#a9b0c0' },
-  FRAX:  { id: 'frax',                  peg: 1.0, binance: null,       coinbase: null,       color: '#d77a7a' },
-  crvUSD:{ id: 'crvusd',                peg: 1.0, binance: null,       coinbase: null,       color: '#b58fd6' },
-  GHO:   { id: 'gho',                   peg: 1.0, binance: null,       coinbase: null,       color: '#7ec4b6' },
-  LUSD:  { id: 'liquity-usd',           peg: 1.0, binance: null,       coinbase: null,       color: '#cda674' },
-  TUSD:  { id: 'true-usd',              peg: 1.0, binance: 'TUSDUSDT', coinbase: null,       color: '#7b9bcc' },
-  USDP:  { id: 'paxos-standard',        peg: 1.0, binance: null,       coinbase: null,       color: '#c39073' },
-  GUSD:  { id: 'gemini-dollar',         peg: 1.0, binance: null,       coinbase: 'GUSD-USD', color: '#5fb7c2' },
-  USDD:  { id: 'usdd',                  peg: 1.0, binance: null,       coinbase: null,       color: '#a8d39c' },
-  sUSD:  { id: 'nusd',                  peg: 1.0, binance: null,       coinbase: null,       color: '#9080c8' },
-  RLUSD: { id: 'ripple-usd',            peg: 1.0, binance: null,       coinbase: 'RLUSD-USD', color: '#7fb0e0' },
-  USDS:  { id: 'usds',                  peg: 1.0, binance: null,       coinbase: null,       color: '#c8b870' },
-  USD0:  { id: 'usual-usd',             peg: 1.0, binance: null,       coinbase: null,       color: '#8fd6c0' },
-  sDAI:  { id: 'savings-dai',           peg: 1.0, binance: null,       coinbase: null,       color: '#e0c25a' },
-  agEUR: { id: 'ageur',                 peg: 1.0, binance: null,       coinbase: null,       color: '#6b95d6' },
+  USDC:  { id: 'usd-coin',          peg: 1.0, binance: 'USDCUSDT',  coinbase: 'USDC-USD',  color: '#6aa3e0' },
+  USDT:  { id: 'tether',            peg: 1.0, binance: null,        coinbase: 'USDT-USD',  color: '#6ec07a' },
+  DAI:   { id: 'dai',               peg: 1.0, binance: null,        coinbase: 'DAI-USD',   color: '#f5e03a' },
+  FDUSD: { id: 'first-digital-usd', peg: 1.0, binance: 'FDUSDUSDT', coinbase: null,        color: '#d9a05b' },
+  PYUSD: { id: 'paypal-usd',        peg: 1.0, binance: null,        coinbase: 'PYUSD-USD', color: '#4f9dd8' },
+  USDe:  { id: 'ethena-usde',       peg: 1.0, binance: 'USDEUSDT',  coinbase: null,        color: '#a9b0c0' },
+  FRAX:  { id: 'frax',              peg: 1.0, binance: null,        coinbase: null,        color: '#d77a7a' },
+  crvUSD:{ id: 'crvusd',            peg: 1.0, binance: null,        coinbase: null,        color: '#b58fd6' },
+  GHO:   { id: 'gho',               peg: 1.0, binance: null,        coinbase: null,        color: '#7ec4b6' },
+  LUSD:  { id: 'liquity-usd',       peg: 1.0, binance: null,        coinbase: null,        color: '#cda674' },
+  TUSD:  { id: 'true-usd',          peg: 1.0, binance: 'TUSDUSDT',  coinbase: null,        color: '#7b9bcc' },
+  USDP:  { id: 'paxos-standard',    peg: 1.0, binance: null,        coinbase: null,        color: '#c39073' },
+  GUSD:  { id: 'gemini-dollar',     peg: 1.0, binance: null,        coinbase: 'GUSD-USD',  color: '#5fb7c2' },
+  USDD:  { id: 'usdd',              peg: 1.0, binance: null,        coinbase: null,        color: '#a8d39c' },
+  sUSD:  { id: 'nusd',              peg: 1.0, binance: null,        coinbase: null,        color: '#9080c8' },
+  RLUSD: { id: 'ripple-usd',        peg: 1.0, binance: null,        coinbase: 'RLUSD-USD', color: '#7fb0e0' },
+  USDS:  { id: 'usds',              peg: 1.0, binance: null,        coinbase: null,        color: '#c8b870' },
+  USD0:  { id: 'usual-usd',         peg: 1.0, binance: null,        coinbase: null,        color: '#8fd6c0' },
+  sDAI:  { id: 'savings-dai',       peg: 1.0, binance: null,        coinbase: null,        color: '#e0c25a' },
+  agEUR: { id: 'ageur',             peg: 1.0, binance: null,        coinbase: null,        color: '#6b95d6' },
 };
 
 // ============================================================================
 // State
 // ============================================================================
-const WINDOW = 720;                     // ~1h of 5s live ticks
-const liveHistory = {};                 // { SYM: [{t, price}, ...] }
-const liveBySource = {};                // { SYM: { binance, coinbase, coingecko } }
-const histHistory = {};                 // historical mode price series
-let activeCoins = parseCoinsInput();    // [SYM, ...]
+const WINDOW = 720;
+const liveHistory  = {};   // { sym: [{t, price}] }     — median of available sources
+const liveBySource = {};   // { sym: { source: {price, t} } }
+const sourceHistory = {};  // { sym: { source: [{t, price}] } } — per-source over time
+const histHistory  = {};   // { sym: [{t, price}] }     — loaded historical
+let activeCoins = parseCoinsInput();
 let prevSeverity = {};
-let mode = 'live';                      // live | 1d | 7d | 30d | 90d | 365d
-let pollTimer = null;
-let nextAt = 0;
+let mode = 'live';
+let view = 'individual';
+let activeIndicators = new Set();
+let sandboxFn = null;
+let lastObservations = [];
+
+// Per-source poll state — independent intervals + cooldown on 429.
+const POLL = {
+  binance:   { interval: 5,  timer: null, lastT: 0, status: 'idle', cooldown: 0 },
+  coinbase:  { interval: 5,  timer: null, lastT: 0, status: 'idle', cooldown: 0 },
+  coingecko: { interval: 20, timer: null, lastT: 0, status: 'idle', cooldown: 0 },
+};
 
 // ============================================================================
 // Helpers
@@ -303,10 +360,8 @@ function parseCoinsInput() {
                      : Object.keys(COIN_REGISTRY).find(k => k.toLowerCase() === s.toLowerCase()))
             .filter(Boolean);
 }
-function bpsFromPeg(price, peg) {
-  if (!Number.isFinite(price)) return NaN;
-  return ((price - peg) / peg) * 10000;
-}
+const I = () => window.depegIndicators;
+function bpsFromPeg(price, peg) { if (!Number.isFinite(price)) return NaN; return ((price - peg) / peg) * 10000; }
 function severity(absBps) {
   const w = parseFloat(document.getElementById('warnBps').value);
   const c = parseFloat(document.getElementById('critBps').value);
@@ -314,179 +369,258 @@ function severity(absBps) {
   if (absBps >= w) return 'warn';
   return 'ok';
 }
-function median(arr) {
-  const s = [...arr].sort((a, b) => a - b);
-  const n = s.length;
-  return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
-}
+function median(arr) { const s = [...arr].sort((a, b) => a - b); const n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; }
 function fmtPrice(p) { return Number.isFinite(p) ? '$' + p.toFixed(4) : '—'; }
-function fmtBps(b) { return Number.isFinite(b) ? (b >= 0 ? '+' : '') + b.toFixed(1) + ' bps' : '— bps'; }
-function fmtTime(t) { return new Date(t).toLocaleTimeString(); }
-function fmtDateTime(t) {
-  const d = new Date(t);
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' +
-         d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-}
+function fmtBps(b)   { return Number.isFinite(b) ? (b >= 0 ? '+' : '') + b.toFixed(1) + ' bps' : '— bps'; }
+function fmtTime(t)  { return new Date(t).toLocaleTimeString(); }
+function fmtDateTime(t) { const d = new Date(t); return d.toLocaleDateString(undefined, {month: 'short', day: 'numeric'}) + ' ' + d.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'}); }
 
 // ============================================================================
-// Live sources — three independent fetches per tick, median aggregated.
+// Source fetchers — each returns { sym: price } for the current activeCoins.
+// On failure they set status on POLL[src] so the header chip reflects reality.
 // ============================================================================
-async function fetchBinance(symbols) {
-  const pairs = symbols.map(s => COIN_REGISTRY[s].binance).filter(Boolean);
-  if (!pairs.length) return {};
+async function fetchBinance() {
+  const symbols = activeCoins.filter(s => COIN_REGISTRY[s].binance);
+  if (!symbols.length) { POLL.binance.status = 'idle'; return {}; }
+  const pairs = symbols.map(s => COIN_REGISTRY[s].binance);
   try {
-    const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbols=' + encodeURIComponent(JSON.stringify(pairs)));
-    if (!res.ok) return {};
+    const url = 'https://api.binance.com/api/v3/ticker/price?symbols=' + encodeURIComponent(JSON.stringify(pairs));
+    const res = await fetch(url);
+    if (!res.ok) { POLL.binance.status = res.status === 429 ? 'hot' : 'warn'; return {}; }
     const arr = await res.json();
     const byPair = Object.fromEntries(arr.map(x => [x.symbol, parseFloat(x.price)]));
     const out = {};
     for (const sym of symbols) {
       const pair = COIN_REGISTRY[sym].binance;
-      if (!pair) continue;
       const p = byPair[pair];
-      // Reject zero/negative — see fix in depeg-monitor/sources/cex.py.
       if (Number.isFinite(p) && p > 0) out[sym] = p;
     }
+    POLL.binance.status = 'ok';
+    POLL.binance.lastT = Date.now();
     return out;
-  } catch { return {}; }
+  } catch { POLL.binance.status = 'hot'; return {}; }
 }
-async function fetchCoinbase(symbols) {
-  // Coinbase: one request per pair. Skip coins without coinbase pair.
+async function fetchCoinbase() {
+  const symbols = activeCoins.filter(s => COIN_REGISTRY[s].coinbase);
+  if (!symbols.length) { POLL.coinbase.status = 'idle'; return {}; }
   const out = {};
-  const tasks = symbols
-    .filter(s => COIN_REGISTRY[s].coinbase)
-    .map(async (sym) => {
-      try {
-        const pair = COIN_REGISTRY[sym].coinbase;
-        const res = await fetch(`https://api.coinbase.com/v2/prices/${pair}/spot`);
-        if (!res.ok) return;
-        const j = await res.json();
-        const p = parseFloat(j.data?.amount);
-        if (Number.isFinite(p) && p > 0) out[sym] = p;
-      } catch {}
-    });
-  await Promise.allSettled(tasks);
+  let anyOk = false, any429 = false, anyErr = false;
+  await Promise.allSettled(symbols.map(async (sym) => {
+    try {
+      const pair = COIN_REGISTRY[sym].coinbase;
+      const res = await fetch(`https://api.coinbase.com/v2/prices/${pair}/spot`);
+      if (!res.ok) { if (res.status === 429) any429 = true; else anyErr = true; return; }
+      const j = await res.json();
+      const p = parseFloat(j.data?.amount);
+      if (Number.isFinite(p) && p > 0) { out[sym] = p; anyOk = true; }
+    } catch { anyErr = true; }
+  }));
+  POLL.coinbase.status = any429 ? 'hot' : (anyOk ? 'ok' : 'warn');
+  if (anyOk) POLL.coinbase.lastT = Date.now();
   return out;
 }
-async function fetchCoinGecko(symbols) {
-  const ids = symbols.map(s => COIN_REGISTRY[s].id).filter(Boolean);
-  if (!ids.length) return {};
+async function fetchCoinGecko() {
+  if (POLL.coingecko.cooldown && Date.now() < POLL.coingecko.cooldown) {
+    POLL.coingecko.status = 'warn'; return {};
+  }
+  const ids = activeCoins.map(s => COIN_REGISTRY[s].id).filter(Boolean);
+  if (!ids.length) { POLL.coingecko.status = 'idle'; return {}; }
   try {
-    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' +
-                            encodeURIComponent(ids.join(',')) + '&vs_currencies=usd');
-    if (!res.ok) return {};
+    const url = 'https://api.coingecko.com/api/v3/simple/price?ids=' + encodeURIComponent(ids.join(',')) + '&vs_currencies=usd';
+    const res = await fetch(url);
+    if (res.status === 429) {
+      POLL.coingecko.status = 'hot';
+      // Back off 60s on rate-limit.
+      POLL.coingecko.cooldown = Date.now() + 60000;
+      appendLog('warn', 'coingecko rate-limited — backing off 60s');
+      return {};
+    }
+    if (!res.ok) { POLL.coingecko.status = 'warn'; return {}; }
     const j = await res.json();
     const out = {};
-    for (const sym of symbols) {
+    for (const sym of activeCoins) {
       const id = COIN_REGISTRY[sym].id;
       const p = j[id]?.usd;
       if (Number.isFinite(p) && p > 0) out[sym] = p;
     }
+    POLL.coingecko.status = 'ok';
+    POLL.coingecko.lastT = Date.now();
+    POLL.coingecko.cooldown = 0;
     return out;
-  } catch { return {}; }
+  } catch { POLL.coingecko.status = 'hot'; return {}; }
 }
 
 // ============================================================================
-// Historical — CoinGecko market_chart for one coin × N days. Granularity
-// auto-selected by the API: ≤1d → 5-min, ≤90d → hourly, >90d → daily.
+// Historical loader
 // ============================================================================
 async function fetchHistory(symbol, days) {
   const id = COIN_REGISTRY[symbol].id;
   try {
     const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=${days}`);
-    if (!res.ok) return [];
+    if (!res.ok) {
+      if (res.status === 429) {
+        POLL.coingecko.status = 'hot';
+        POLL.coingecko.cooldown = Date.now() + 60000;
+      }
+      return [];
+    }
     const j = await res.json();
-    // j.prices = [[ts_ms, price], ...]
     return (j.prices || []).map(([t, p]) => ({ t, price: p }));
   } catch { return []; }
 }
 
 // ============================================================================
-// Notable events — scan a series, return windows where |dev| stayed above
-// the critical threshold. Each event = peak bps + duration + first-seen.
-// Cluster ticks within 1h of each other into a single event.
+// Source status header
 // ============================================================================
-function detectEvents(series, peg, critBps) {
-  const events = [];
-  const HOUR = 3600 * 1000;
-  let cur = null;
-  for (const { t, price } of series) {
-    const bps = bpsFromPeg(price, peg);
-    if (!Number.isFinite(bps)) continue;
-    if (Math.abs(bps) >= critBps) {
-      if (!cur || (t - cur.lastT) > HOUR) {
-        if (cur) events.push(cur);
-        cur = { firstT: t, lastT: t, peakBps: bps, peakPrice: price };
-      } else {
-        cur.lastT = t;
-        if (Math.abs(bps) > Math.abs(cur.peakBps)) { cur.peakBps = bps; cur.peakPrice = price; }
-      }
-    } else if (cur && (t - cur.lastT) > HOUR) {
-      events.push(cur); cur = null;
-    }
+function renderSourceChips() {
+  for (const src of ['binance', 'coinbase', 'coingecko']) {
+    const el = document.querySelector(`.src-chip[data-src=${src}]`);
+    if (!el) continue;
+    el.classList.remove('ok', 'warn', 'hot');
+    if (POLL[src].status === 'ok')   el.classList.add('ok');
+    if (POLL[src].status === 'warn') el.classList.add('warn');
+    if (POLL[src].status === 'hot')  el.classList.add('hot');
+    const ageMs = POLL[src].lastT ? Date.now() - POLL[src].lastT : null;
+    const ageEl = el.querySelector('.age');
+    if (POLL[src].status === 'idle') ageEl.textContent = '(unused)';
+    else if (ageMs == null)          ageEl.textContent = '…';
+    else if (ageMs < 1000)           ageEl.textContent = 'now';
+    else if (ageMs < 60000)          ageEl.textContent = Math.round(ageMs / 1000) + 's';
+    else                             ageEl.textContent = Math.round(ageMs / 60000) + 'm';
   }
-  if (cur) events.push(cur);
-  return events;
 }
 
 // ============================================================================
-// Chart drawing — fixed ±visualRange bps so chart is comparable across coins
-// regardless of zoom. Multi-series, one path per coin.
+// Chart drawing — used for both joint and per-card charts. Same projection,
+// different dimensions.
 // ============================================================================
-const CHART_W = 800;
-const CHART_H = 280;
-const CHART_PAD_L = 40;
-const CHART_PAD_R = 8;
-const CHART_PAD_T = 12;
-const CHART_PAD_B = 18;
-const VISUAL_RANGE = 300; // ±300 bps; clamps anything beyond to the edge
-
-function ySVG(bps) {
-  const usable = CHART_H - CHART_PAD_T - CHART_PAD_B;
-  const clamped = Math.max(-VISUAL_RANGE, Math.min(VISUAL_RANGE, bps));
-  return CHART_PAD_T + (1 - (clamped + VISUAL_RANGE) / (2 * VISUAL_RANGE)) * usable;
-}
-function xSVG(i, n) {
-  const usable = CHART_W - CHART_PAD_L - CHART_PAD_R;
-  return CHART_PAD_L + (n <= 1 ? 0 : (i / (n - 1)) * usable);
+function makeChartCtx(width, height, padL, padR, padT, padB, visualRange) {
+  return {
+    width, height, padL, padR, padT, padB, visualRange,
+    ySVG(bps) {
+      const usable = height - padT - padB;
+      const clamped = Math.max(-visualRange, Math.min(visualRange, bps));
+      return padT + (1 - (clamped + visualRange) / (2 * visualRange)) * usable;
+    },
+    xSVG(i, n) {
+      const usable = width - padL - padR;
+      return padL + (n <= 1 ? 0 : (i / (n - 1)) * usable);
+    },
+  };
 }
 
-function drawChart() {
-  const svg = document.getElementById('tsChart');
+function pathFromBpsSeries(bpsSeries, ctx) {
+  const n = bpsSeries.length;
+  return bpsSeries.map((p, i) => {
+    const x = ctx.xSVG(i, n).toFixed(2);
+    const y = ctx.ySVG(Number.isFinite(p.value) ? p.value : 0).toFixed(2);
+    return (i === 0 ? 'M' : 'L') + ' ' + x + ' ' + y;
+  }).join(' ');
+}
+
+function guideLines(ctx) {
   const warnBps = parseFloat(document.getElementById('warnBps').value);
   const critBps = parseFloat(document.getElementById('critBps').value);
+  const xR = ctx.width - ctx.padR;
+  return [
+    `<line class="hot"  x1="${ctx.padL}" y1="${ctx.ySVG(critBps)}"  x2="${xR}" y2="${ctx.ySVG(critBps)}"  />`,
+    `<line class="warn" x1="${ctx.padL}" y1="${ctx.ySVG(warnBps)}"  x2="${xR}" y2="${ctx.ySVG(warnBps)}"  />`,
+    `<line class="peg"  x1="${ctx.padL}" y1="${ctx.ySVG(0)}"        x2="${xR}" y2="${ctx.ySVG(0)}"        />`,
+    `<line class="warn" x1="${ctx.padL}" y1="${ctx.ySVG(-warnBps)}" x2="${xR}" y2="${ctx.ySVG(-warnBps)}" />`,
+    `<line class="hot"  x1="${ctx.padL}" y1="${ctx.ySVG(-critBps)}" x2="${xR}" y2="${ctx.ySVG(-critBps)}" />`,
+  ].join('');
+}
+
+function axisLabels(ctx) {
+  const warnBps = parseFloat(document.getElementById('warnBps').value);
+  const critBps = parseFloat(document.getElementById('critBps').value);
+  return [
+    `<text class="axis-label" x="4" y="${ctx.ySVG(critBps)+3}">+${critBps}</text>`,
+    `<text class="axis-label" x="4" y="${ctx.ySVG(warnBps)+3}">+${warnBps}</text>`,
+    `<text class="axis-label" x="4" y="${ctx.ySVG(0)+3}">peg</text>`,
+    `<text class="axis-label" x="4" y="${ctx.ySVG(-warnBps)+3}">-${warnBps}</text>`,
+    `<text class="axis-label" x="4" y="${ctx.ySVG(-critBps)+3}">-${critBps}</text>`,
+  ].join('');
+}
+
+function computeIndicatorsForSeries(sym, series) {
+  const peg = COIN_REGISTRY[sym].peg;
+  const perSource = sourceHistory[sym] || {};
+  const out = [];
+  for (const reg of window.depegIndicatorRegistry) {
+    if (!activeIndicators.has(reg.key)) continue;
+    try {
+      const result = reg.fn({ series, peg, perSource });
+      out.push({ key: reg.key, name: reg.name, color: reg.color, style: reg.style, series: result });
+    } catch (e) {
+      appendLog('warn', `indicator ${reg.key} failed for ${sym}: ${e.message}`);
+    }
+  }
+  if (sandboxFn) {
+    try {
+      const result = sandboxFn(series, peg, perSource, I());
+      if (Array.isArray(result)) {
+        out.push({ key: 'sandbox', name: 'sandbox', color: 'var(--mark)', style: 'solid', series: result });
+      }
+    } catch (e) {
+      appendLog('hot', `sandbox failed for ${sym}: ${e.message}`);
+    }
+  }
+  return out;
+}
+
+function drawJointChart() {
+  if (view !== 'joint') return;
+  const svg = document.getElementById('tsChart');
+  const ctx = makeChartCtx(800, 280, 40, 8, 12, 18, 300);
   const store = (mode === 'live') ? liveHistory : histHistory;
-  const xRight = CHART_W - CHART_PAD_R;
-
-  const parts = [
-    `<line class="hot"  x1="${CHART_PAD_L}" y1="${ySVG(critBps)}"  x2="${xRight}" y2="${ySVG(critBps)}"  />`,
-    `<line class="warn" x1="${CHART_PAD_L}" y1="${ySVG(warnBps)}"  x2="${xRight}" y2="${ySVG(warnBps)}"  />`,
-    `<line class="peg"  x1="${CHART_PAD_L}" y1="${ySVG(0)}"        x2="${xRight}" y2="${ySVG(0)}"        />`,
-    `<line class="warn" x1="${CHART_PAD_L}" y1="${ySVG(-warnBps)}" x2="${xRight}" y2="${ySVG(-warnBps)}" />`,
-    `<line class="hot"  x1="${CHART_PAD_L}" y1="${ySVG(-critBps)}" x2="${xRight}" y2="${ySVG(-critBps)}" />`,
-    `<text class="axis-label" x="4" y="${ySVG(critBps)+3}">+${critBps}</text>`,
-    `<text class="axis-label" x="4" y="${ySVG(warnBps)+3}">+${warnBps}</text>`,
-    `<text class="axis-label" x="4" y="${ySVG(0)+3}">peg</text>`,
-    `<text class="axis-label" x="4" y="${ySVG(-warnBps)+3}">-${warnBps}</text>`,
-    `<text class="axis-label" x="4" y="${ySVG(-critBps)+3}">-${critBps}</text>`,
-  ];
-
+  const parts = [guideLines(ctx), axisLabels(ctx)];
   for (const sym of activeCoins) {
     const series = store[sym] || [];
-    if (series.length < 2) continue;
+    if (series.length < 1) continue;
     const peg = COIN_REGISTRY[sym].peg;
-    const n = series.length;
-    const d = series.map((p, i) => {
-      const bps = bpsFromPeg(p.price, peg);
-      const x = xSVG(i, n).toFixed(2);
-      const y = ySVG(Number.isFinite(bps) ? bps : 0).toFixed(2);
-      return (i === 0 ? 'M' : 'L') + ' ' + x + ' ' + y;
-    }).join(' ');
-    const color = COIN_REGISTRY[sym].color;
-    parts.push(`<path class="series" stroke="${color}" d="${d}" />`);
+    const bpsSeries = series.map(p => ({ t: p.t, value: bpsFromPeg(p.price, peg) }));
+    const d = pathFromBpsSeries(bpsSeries, ctx);
+    parts.push(`<path class="series" stroke="${COIN_REGISTRY[sym].color}" d="${d}" />`);
   }
-
   svg.innerHTML = parts.join('');
+}
+
+function drawCardChart(sym, svg) {
+  const store = (mode === 'live') ? liveHistory : histHistory;
+  const series = store[sym] || [];
+  const peg = COIN_REGISTRY[sym].peg;
+  const ctx = makeChartCtx(400, 140, 32, 6, 8, 14, 200);
+  svg.setAttribute('viewBox', `0 0 ${ctx.width} ${ctx.height}`);
+  if (series.length < 1) { svg.innerHTML = ''; return; }
+  const bpsSeries = series.map(p => ({ t: p.t, value: bpsFromPeg(p.price, peg) }));
+  const parts = [guideLines(ctx), axisLabels(ctx)];
+  const indicators = computeIndicatorsForSeries(sym, series);
+  // Underlay: indicators (so the price line sits on top)
+  for (const ind of indicators) {
+    const d = pathFromBpsSeries(ind.series, ctx);
+    parts.push(`<path class="indicator ${ind.style === 'dashed' ? 'dashed' : ''}" stroke="${ind.color}" d="${d}" />`);
+  }
+  // Overlay: the price line, in the coin's color
+  const dMain = pathFromBpsSeries(bpsSeries, ctx);
+  parts.push(`<path class="series" stroke="${COIN_REGISTRY[sym].color}" d="${dMain}" />`);
+  svg.innerHTML = parts.join('');
+
+  // Update indicator legend below the chart
+  const card = svg.closest('.card');
+  const leg = card?.querySelector('.ind-legend');
+  if (leg) {
+    leg.innerHTML = indicators.map(ind =>
+      `<span style="color:${ind.color}"><span class="swatch"></span>${ind.name}</span>`
+    ).join('');
+  }
+}
+
+function drawAllCardCharts() {
+  document.querySelectorAll('.card svg.card-chart').forEach(svg => {
+    const sym = svg.closest('.card').dataset.symbol;
+    drawCardChart(sym, svg);
+  });
 }
 
 function drawLegend() {
@@ -498,7 +632,7 @@ function drawLegend() {
 }
 
 // ============================================================================
-// Per-coin cards
+// Cards
 // ============================================================================
 function renderCards() {
   const grid = document.getElementById('coinGrid');
@@ -512,7 +646,8 @@ function renderCards() {
       </div>
       <div class="metric" data-role="price">—</div>
       <div class="delta" data-role="delta">— bps vs $${c.peg.toFixed(2)}</div>
-      <svg class="spark" data-role="spark" viewBox="0 0 100 44" preserveAspectRatio="none"></svg>
+      <div class="card-chart-wrap"><svg class="card-chart" preserveAspectRatio="none"></svg></div>
+      <div class="ind-legend"></div>
       <div class="sources">
         <span class="src">binance</span>  <span class="val" data-src="binance">—</span>
         <span class="src">coinbase</span> <span class="val" data-src="coinbase">—</span>
@@ -525,26 +660,313 @@ function setStatusChip(el, sev) {
   el.className = 'chip ' + sev;
   el.textContent = sev === 'ok' ? 'pegged' : sev === 'warn' ? 'warn' : 'depeg';
 }
-function drawSpark(svg, points, peg) {
-  if (points.length < 2) { svg.innerHTML = ''; return; }
-  const range = 200;
-  const toY = (bps) => {
-    const clamped = Math.max(-range, Math.min(range, bps));
-    return (1 - (clamped + range) / (2 * range)) * 42 + 1;
-  };
-  const step = 100 / Math.max(1, points.length - 1);
-  const d = points.map((p, i) => {
-    const bps = bpsFromPeg(p.price, peg);
-    return `${i === 0 ? 'M' : 'L'} ${(i * step).toFixed(2)} ${toY(bps).toFixed(2)}`;
-  }).join(' ');
-  svg.innerHTML = `
-    <line class="peg"  x1="0" y1="${toY(0)}"  x2="100" y2="${toY(0)}"  />
-    <path class="series" stroke="currentColor" d="${d}" />`;
+
+// ============================================================================
+// Per-source aggregation — pull the latest reading per source for each coin
+// and compute median. Source readings older than 60s are dropped to keep the
+// aggregate fresh even when one source has gone dark.
+// ============================================================================
+function aggregateAndRender() {
+  const t = Date.now();
+  const FRESH = 60000;
+  for (const sym of activeCoins) {
+    const per = liveBySource[sym] || {};
+    const fresh = {};
+    for (const src of ['binance', 'coinbase', 'coingecko']) {
+      const r = per[src];
+      if (r && r.price > 0 && (t - r.t) < FRESH) fresh[src] = r.price;
+    }
+    const vals = Object.values(fresh);
+    const price = vals.length ? median(vals) : NaN;
+    const peg = COIN_REGISTRY[sym].peg;
+
+    const hist = (liveHistory[sym] ||= []);
+    if (Number.isFinite(price) && (!hist.length || hist[hist.length - 1].t !== t)) {
+      hist.push({ t, price });
+      if (hist.length > WINDOW) hist.shift();
+    }
+
+    const bps = bpsFromPeg(price, peg);
+    const sev = Number.isFinite(bps) ? severity(Math.abs(bps)) : 'warn';
+    const card = document.querySelector(`.card[data-symbol=${sym}]`);
+    if (!card) continue;
+
+    card.querySelector('[data-role=price]').textContent = fmtPrice(price);
+    const deltaEl = card.querySelector('[data-role=delta]');
+    deltaEl.className = 'delta ' + sev;
+    deltaEl.textContent = `${fmtBps(bps)} vs $${peg.toFixed(2)}`;
+    setStatusChip(card.querySelector('[data-role=status]'), sev);
+
+    for (const srcName of ['binance', 'coinbase', 'coingecko']) {
+      const r = per[srcName];
+      const valEl = card.querySelector(`[data-src=${srcName}]`);
+      if (r && Number.isFinite(r.price) && (t - r.t) < FRESH) {
+        const sBps = bpsFromPeg(r.price, peg);
+        valEl.className = 'val ' + severity(Math.abs(sBps));
+        valEl.textContent = `$${r.price.toFixed(4)} ${fmtBps(sBps)}`;
+      } else {
+        valEl.className = 'val';
+        valEl.textContent = '—';
+      }
+    }
+
+    if (sev !== (prevSeverity[sym] || 'ok')) {
+      if (sev === 'hot') appendLog('hot', `${sym} CRITICAL depeg: ${fmtBps(bps)}`);
+      else if (sev === 'warn') appendLog('warn', `${sym} warning: ${fmtBps(bps)}`);
+      else if (prevSeverity[sym]) appendLog('ok', `${sym} re-pegged: ${fmtBps(bps)}`);
+      prevSeverity[sym] = sev;
+    }
+
+    // Emit observation to the depeg-oracles wire format (browser-non-authoritative).
+    if (Number.isFinite(price)) {
+      const obs = {
+        schema: 'depeg-oracle/observation/v1',
+        observer_id: 'browser:' + (window.location.host || 'localhost'),
+        ts: new Date(t).toISOString(),
+        coin: sym,
+        peg,
+        median_price: price,
+        deviation_bps: bps,
+        severity: sev === 'ok' ? 'ok' : sev === 'warn' ? 'warn' : 'critical',
+        sources: Object.entries(fresh).map(([name, p]) => ({ name, price: p, ts: new Date(per[name].t).toISOString() })),
+        config: {
+          warn_threshold_bps: parseFloat(document.getElementById('warnBps').value),
+          critical_threshold_bps: parseFloat(document.getElementById('critBps').value),
+          aggregator: 'median',
+        },
+      };
+      lastObservations.push(obs);
+      if (lastObservations.length > 200) lastObservations.shift();
+    }
+  }
+
+  if (view === 'individual') drawAllCardCharts();
+  if (view === 'joint') drawJointChart();
 }
 
 // ============================================================================
-// Alert log
+// Source tick — independent per-source timers; each writes into liveBySource.
 // ============================================================================
+function recordSource(src, results) {
+  const t = Date.now();
+  // Snapshot per-source history (one point per source per tick, capped).
+  for (const sym of activeCoins) {
+    const price = results[sym];
+    if (!Number.isFinite(price)) continue;
+    (liveBySource[sym] ||= {})[src] = { price, t };
+    const sh = ((sourceHistory[sym] ||= {})[src] ||= []);
+    sh.push({ t, price });
+    if (sh.length > WINDOW) sh.shift();
+  }
+}
+
+async function tickBinance() {
+  const r = await fetchBinance();
+  recordSource('binance', r);
+  aggregateAndRender();
+  renderSourceChips();
+}
+async function tickCoinbase() {
+  const r = await fetchCoinbase();
+  recordSource('coinbase', r);
+  aggregateAndRender();
+  renderSourceChips();
+}
+async function tickCoinGecko() {
+  const r = await fetchCoinGecko();
+  recordSource('coingecko', r);
+  aggregateAndRender();
+  renderSourceChips();
+}
+
+function scheduleAll() {
+  // Cancel everything
+  for (const src of Object.keys(POLL)) {
+    if (POLL[src].timer) { clearInterval(POLL[src].timer); POLL[src].timer = null; }
+  }
+  if (mode !== 'live') return;
+  const userSec = Math.max(1, parseInt(document.getElementById('pollSec').value, 10));
+  POLL.binance.interval  = userSec;
+  POLL.coinbase.interval = userSec;
+  // CoinGecko stays at 20s minimum to dodge the rate limit. The user-set value
+  // is honoured when it's slower than 20s.
+  POLL.coingecko.interval = Math.max(20, userSec);
+  POLL.binance.timer   = setInterval(tickBinance,   POLL.binance.interval   * 1000);
+  POLL.coinbase.timer  = setInterval(tickCoinbase,  POLL.coinbase.interval  * 1000);
+  POLL.coingecko.timer = setInterval(tickCoinGecko, POLL.coingecko.interval * 1000);
+  tickBinance(); tickCoinbase(); tickCoinGecko();
+}
+
+// ============================================================================
+// Indicators UI
+// ============================================================================
+function renderIndicatorList() {
+  const el = document.getElementById('indList');
+  const reg = window.depegIndicatorRegistry || [];
+  el.innerHTML = reg.map(r => `
+    <label data-key="${r.key}" style="color:${r.color}">
+      <input type="checkbox" data-key="${r.key}" ${activeIndicators.has(r.key) ? 'checked' : ''} />
+      <span class="swatch"></span>${r.name}
+    </label>
+  `).join('');
+  el.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const key = cb.dataset.key;
+      if (cb.checked) activeIndicators.add(key); else activeIndicators.delete(key);
+      cb.closest('label').classList.toggle('on', cb.checked);
+      if (view === 'individual') drawAllCardCharts();
+    });
+    cb.closest('label').classList.toggle('on', cb.checked);
+  });
+}
+
+// ============================================================================
+// Sandbox
+// ============================================================================
+const SANDBOX_SAMPLES = {
+  ewma_bps: `function indicator(series, peg, perSource, i) {
+  // EWMA(α=0.05) of bps deviation — heavy smoothing.
+  return i.asBps(i.ewma(series, { alpha: 0.05 }), peg);
+}`,
+  rolling_max: `function indicator(series, peg, perSource, i) {
+  // Rolling max-|bps| over a 30-tick window. Highlights the worst recent depeg.
+  return i.rolling(series, 30, (window) => {
+    let worst = 0;
+    for (const p of window) {
+      const b = ((p - peg) / peg) * 10000;
+      if (Math.abs(b) > Math.abs(worst)) worst = b;
+    }
+    return worst;
+  });
+}`,
+  cusum: `function indicator(series, peg, perSource, i) {
+  // CUSUM of bps returns — detects sustained drift.
+  let cum = 0;
+  return series.map((p, idx) => {
+    if (idx === 0) return { t: p.t, value: 0 };
+    const ret = ((p.price - series[idx-1].price) / series[idx-1].price) * 10000;
+    cum += ret;
+    return { t: p.t, value: cum };
+  });
+}`,
+  lag: `function indicator(series, peg, perSource, i) {
+  // Median bps deviation in a 10-tick lagged window (smoother than EWMA).
+  return i.rolling(series, 10, (window) => {
+    const bps = window.map(p => ((p - peg) / peg) * 10000).sort((a,b) => a-b);
+    return bps[Math.floor(bps.length / 2)];
+  });
+}`,
+};
+
+function compileSandbox() {
+  const code = document.getElementById('sandboxCode').value;
+  try {
+    // The user's code defines a function `indicator(...)`. We wrap with a
+    // Function() so they can also paste a function literal as the body.
+    const fn = new Function('series', 'peg', 'perSource', 'i', code + '\n; return indicator(series, peg, perSource, i);');
+    sandboxFn = fn;
+    appendLog('ok', 'sandbox indicator compiled');
+    if (view === 'individual') drawAllCardCharts();
+  } catch (e) {
+    sandboxFn = null;
+    appendLog('hot', `sandbox compile error: ${e.message}`);
+  }
+}
+
+// ============================================================================
+// Notable events — runs over loaded historical series
+// ============================================================================
+function detectAllEvents() {
+  const critBps = parseFloat(document.getElementById('critBps').value);
+  const all = [];
+  for (const sym of activeCoins) {
+    const series = histHistory[sym] || liveHistory[sym] || [];
+    if (series.length < 3) continue;
+    const events = I().recoveryTime(series, { peg: COIN_REGISTRY[sym].peg, threshold: critBps, eps: 25, coolDownTicks: 3 });
+    for (const ev of events) all.push({ ...ev, sym });
+  }
+  all.sort((a, b) => Math.abs(b.peakBps) - Math.abs(a.peakBps));
+  renderEvents(all.slice(0, 20));
+}
+
+function renderEvents(events) {
+  const body = document.getElementById('eventsBody');
+  if (!events.length) {
+    body.innerHTML = '<tr><td colspan="6" class="empty">no depeg events above critical threshold in this window</td></tr>';
+    return;
+  }
+  body.innerHTML = events.map((e) => {
+    const dur = e.durationMs;
+    const durStr = dur < 3600000 ? `${Math.round(dur / 60000)}m` : dur < 86400000 ? `${(dur / 3600000).toFixed(1)}h` : `${(dur / 86400000).toFixed(1)}d`;
+    const sev = severity(Math.abs(e.peakBps));
+    return `<tr>
+      <td>${fmtDateTime(e.firstT)}</td>
+      <td class="fg">${e.sym}</td>
+      <td class="num">$${e.peakPrice.toFixed(4)}</td>
+      <td class="num ${sev}">${fmtBps(e.peakBps)}</td>
+      <td>${durStr}</td>
+      <td></td>
+    </tr>`;
+  }).join('');
+}
+
+// ============================================================================
+// Mode switching (historical loader)
+// ============================================================================
+async function loadHistorical(modeStr) {
+  const daysMap = { '1d': 1, '7d': 7, '30d': 30, '90d': 90, '365d': 365 };
+  const days = daysMap[modeStr];
+  appendLog('ok', `loading ${days}d history for ${activeCoins.length} coins…`);
+  for (const sym of activeCoins) {
+    histHistory[sym] = await fetchHistory(sym, days);
+    await new Promise(r => setTimeout(r, 350));
+  }
+  document.getElementById('chartTitle').textContent = `${modeStr} · ${activeCoins.length} coins`;
+  document.getElementById('chartMeta').textContent = `granularity: ${days <= 1 ? '5-min' : days <= 90 ? 'hourly' : 'daily'}`;
+  if (view === 'joint') drawJointChart();
+  if (view === 'individual') drawAllCardCharts();
+  detectAllEvents();
+}
+
+function setMode(next) {
+  mode = next;
+  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === next));
+  if (next === 'live') {
+    document.getElementById('chartTitle').textContent = `live · last ${WINDOW} ticks`;
+    document.getElementById('chartMeta').textContent = '';
+    scheduleAll();
+    if (view === 'joint') drawJointChart();
+    if (view === 'individual') drawAllCardCharts();
+    detectAllEvents();
+  } else {
+    scheduleAll(); // stops live timers
+    loadHistorical(next);
+  }
+}
+
+function setView(next) {
+  view = next;
+  document.body.classList.toggle('view-joint', view === 'joint');
+  document.body.classList.toggle('view-individual', view === 'individual');
+  document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', b.dataset.view === next));
+  if (view === 'joint') drawJointChart();
+  if (view === 'individual') drawAllCardCharts();
+}
+
+function applyCoins() {
+  activeCoins = parseCoinsInput();
+  document.getElementById('coinsMeta').textContent = `${activeCoins.length} tracked`;
+  for (const sym of activeCoins) {
+    liveHistory[sym] ||= [];
+    liveBySource[sym] ||= {};
+    sourceHistory[sym] ||= {};
+  }
+  renderCards();
+  drawLegend();
+  if (view === 'joint') drawJointChart();
+  if (view === 'individual') drawAllCardCharts();
+}
+
 function appendLog(level, msg) {
   const ul = document.getElementById('log');
   const li = document.createElement('li');
@@ -555,198 +977,44 @@ function appendLog(level, msg) {
 }
 
 // ============================================================================
-// Live tick
+// Boot
 // ============================================================================
-async function liveTick() {
-  document.getElementById('refreshBadge').textContent = 'refreshing…';
-  const [bin, cb, cg] = await Promise.all([
-    fetchBinance(activeCoins),
-    fetchCoinbase(activeCoins),
-    fetchCoinGecko(activeCoins),
-  ]);
+function boot() {
+  document.getElementById('bootTs').textContent = new Date().toLocaleTimeString();
+  setView('individual');
+  applyCoins();
+  renderIndicatorList();
 
-  const t = Date.now();
-  for (const sym of activeCoins) {
-    const per = { binance: bin[sym], coinbase: cb[sym], coingecko: cg[sym] };
-    liveBySource[sym] = per;
+  document.getElementById('coinsInput').addEventListener('change', () => { applyCoins(); if (mode === 'live') scheduleAll(); else loadHistorical(mode); });
+  document.getElementById('pollSec').addEventListener('change', scheduleAll);
+  document.getElementById('warnBps').addEventListener('change', () => { if (view === 'joint') drawJointChart(); else drawAllCardCharts(); });
+  document.getElementById('critBps').addEventListener('change', () => { if (view === 'joint') drawJointChart(); else drawAllCardCharts(); detectAllEvents(); });
+  document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  document.querySelectorAll('#viewSeg button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
 
-    const vals = Object.values(per).filter(v => Number.isFinite(v));
-    const price = vals.length ? median(vals) : NaN;
-    const peg = COIN_REGISTRY[sym].peg;
-
-    const hist = (liveHistory[sym] ||= []);
-    if (Number.isFinite(price)) {
-      hist.push({ t, price });
-      if (hist.length > WINDOW) hist.shift();
-    }
-
-    const bps = bpsFromPeg(price, peg);
-    const sev = Number.isFinite(bps) ? severity(Math.abs(bps)) : 'warn';
-    const card = document.querySelector(`[data-symbol=${sym}]`);
-    if (!card) continue;
-
-    card.querySelector('[data-role=price]').textContent = fmtPrice(price);
-
-    const deltaEl = card.querySelector('[data-role=delta]');
-    deltaEl.className = 'delta ' + sev;
-    deltaEl.textContent = `${fmtBps(bps)} vs $${peg.toFixed(2)}`;
-
-    setStatusChip(card.querySelector('[data-role=status]'), sev);
-
-    for (const srcName of ['binance', 'coinbase', 'coingecko']) {
-      const v = per[srcName];
-      const valEl = card.querySelector(`[data-src=${srcName}]`);
-      if (Number.isFinite(v)) {
-        const sBps = bpsFromPeg(v, peg);
-        const sSev = severity(Math.abs(sBps));
-        valEl.className = 'val ' + sSev;
-        valEl.textContent = `$${v.toFixed(4)} ${fmtBps(sBps)}`;
-      } else {
-        valEl.className = 'val';
-        valEl.textContent = '—';
-      }
-    }
-
-    card.style.color = COIN_REGISTRY[sym].color;
-    drawSpark(card.querySelector('[data-role=spark]'), hist, peg);
-
-    if (sev !== (prevSeverity[sym] || 'ok')) {
-      if (sev === 'hot') appendLog('hot', `${sym} CRITICAL depeg: ${fmtBps(bps)}`);
-      else if (sev === 'warn') appendLog('warn', `${sym} warning: ${fmtBps(bps)}`);
-      else if (prevSeverity[sym]) appendLog('ok', `${sym} re-pegged: ${fmtBps(bps)}`);
-      prevSeverity[sym] = sev;
-    }
-  }
-
-  if (mode === 'live') drawChart();
-  document.getElementById('refreshBadge').textContent = 'updated ' + new Date().toLocaleTimeString();
-}
-
-// ============================================================================
-// Mode switch
-// ============================================================================
-async function loadHistorical(modeStr) {
-  const daysMap = { '1d': 1, '7d': 7, '30d': 30, '90d': 90, '365d': 365 };
-  const days = daysMap[modeStr];
-  document.getElementById('refreshBadge').textContent = `loading ${modeStr}…`;
-  appendLog('ok', `loading ${days}d history for ${activeCoins.length} coins…`);
-
-  // CoinGecko free tier rate-limits aggressively; throttle requests.
-  for (const sym of activeCoins) {
-    histHistory[sym] = await fetchHistory(sym, days);
-    await new Promise(r => setTimeout(r, 350));
-  }
-
-  // Compute events from loaded history
-  const critBps = parseFloat(document.getElementById('critBps').value);
-  const allEvents = [];
-  for (const sym of activeCoins) {
-    const events = detectEvents(histHistory[sym] || [], COIN_REGISTRY[sym].peg, critBps);
-    events.forEach(e => allEvents.push({ ...e, sym }));
-  }
-  allEvents.sort((a, b) => Math.abs(b.peakBps) - Math.abs(a.peakBps));
-  renderEvents(allEvents.slice(0, 20));
-
-  document.getElementById('chartTitle').textContent = `${modeStr} · ${activeCoins.length} coins`;
-  document.getElementById('chartMeta').textContent = `granularity: ${days <= 1 ? '5-min' : days <= 90 ? 'hourly' : 'daily'}`;
-  drawChart();
-  document.getElementById('refreshBadge').textContent = 'history loaded';
-}
-
-function renderEvents(events) {
-  const body = document.getElementById('eventsBody');
-  if (!events.length) {
-    body.innerHTML = '<tr><td colspan="6" class="empty">no depeg events above critical threshold in this window</td></tr>';
-    return;
-  }
-  body.innerHTML = events.map((e, i) => {
-    const dur = e.lastT - e.firstT;
-    const durStr = dur < 3600000 ? `${Math.round(dur / 60000)}m` : dur < 86400000 ? `${(dur / 3600000).toFixed(1)}h` : `${(dur / 86400000).toFixed(1)}d`;
-    const sev = severity(Math.abs(e.peakBps));
-    return `
-      <tr>
-        <td>${fmtDateTime(e.firstT)}</td>
-        <td class="fg">${e.sym}</td>
-        <td class="num">$${e.peakPrice.toFixed(4)}</td>
-        <td class="num ${sev}">${fmtBps(e.peakBps)}</td>
-        <td>${durStr}</td>
-        <td><a href="#" data-jump-i="${i}" data-jump-t="${e.firstT}" data-jump-sym="${e.sym}">view →</a></td>
-      </tr>`;
-  }).join('');
-  body.querySelectorAll('a[data-jump-t]').forEach(a => {
-    a.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      const sym = a.dataset.jumpSym;
-      // dim other series, brighten the chosen one
-      document.querySelectorAll('#tsChart .series').forEach(p => p.classList.add('dim'));
-      const idx = activeCoins.indexOf(sym);
-      const allPaths = document.querySelectorAll('#tsChart .series');
-      if (allPaths[idx]) allPaths[idx].classList.remove('dim');
-      appendLog('warn', `focus: ${sym} @ ${fmtDateTime(parseInt(a.dataset.jumpT))}`);
-    });
+  document.getElementById('sandboxRun').addEventListener('click', compileSandbox);
+  document.getElementById('sandboxClear').addEventListener('click', () => { sandboxFn = null; appendLog('ok', 'sandbox cleared'); if (view === 'individual') drawAllCardCharts(); });
+  document.getElementById('sandboxSample').addEventListener('change', (e) => {
+    const v = e.target.value;
+    if (!v) return;
+    document.getElementById('sandboxCode').value = SANDBOX_SAMPLES[v];
+    e.target.value = '';
   });
+
+  // Expose for power users.
+  window.depegMonitor = {
+    get lastObservations() { return lastObservations; },
+    get registry() { return COIN_REGISTRY; },
+    get indicators() { return window.depegIndicators; },
+    state: { liveHistory, liveBySource, sourceHistory, histHistory, POLL },
+  };
+
+  scheduleAll();
+  setInterval(renderSourceChips, 1000);
 }
 
-// ============================================================================
-// Scheduler
-// ============================================================================
-function scheduleLive() {
-  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-  if (mode !== 'live') return;
-  const ms = Math.max(1, parseInt(document.getElementById('pollSec').value, 10)) * 1000;
-  nextAt = Date.now() + ms;
-  pollTimer = setInterval(() => { liveTick(); nextAt = Date.now() + ms; }, ms);
-}
-
-function applyCoins() {
-  activeCoins = parseCoinsInput();
-  document.getElementById('coinsMeta').textContent = `${activeCoins.length} tracked`;
-  for (const sym of activeCoins) {
-    liveHistory[sym] ||= [];
-    liveBySource[sym] ||= {};
-  }
-  renderCards();
-  drawLegend();
-  drawChart();
-}
-
-function setMode(next) {
-  mode = next;
-  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === next));
-  if (next === 'live') {
-    document.getElementById('chartTitle').textContent = `live · last ${WINDOW} ticks`;
-    document.getElementById('chartMeta').textContent = '';
-    document.getElementById('eventsBody').innerHTML = '<tr><td colspan="6" class="empty">load 7d+ history to surface peak depeg events</td></tr>';
-    scheduleLive();
-    drawChart();
-  } else {
-    scheduleLive(); // clears the live timer
-    loadHistorical(next);
-  }
-}
-
-// ============================================================================
-// Wire up
-// ============================================================================
-document.getElementById('bootTs').textContent = new Date().toLocaleTimeString();
-applyCoins();
-document.getElementById('coinsInput').addEventListener('change', () => { applyCoins(); if (mode === 'live') liveTick(); else loadHistorical(mode); });
-document.getElementById('pollSec').addEventListener('change', scheduleLive);
-document.getElementById('warnBps').addEventListener('change', drawChart);
-document.getElementById('critBps').addEventListener('change', drawChart);
-document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
-
-liveTick();
-scheduleLive();
-
-setInterval(() => {
-  if (mode !== 'live') return;
-  const remain = Math.max(0, Math.round((nextAt - Date.now()) / 1000));
-  const badge = document.getElementById('refreshBadge');
-  if (remain && badge.textContent.startsWith('updated')) {
-    badge.textContent = `next in ${remain}s`;
-  }
-}, 1000);
+if (window.depegIndicators) boot();
+else window.addEventListener('load', boot);
 </script>
 </body>
 </html>
