@@ -167,6 +167,7 @@
     <span class="src-chip" data-src="binance"><span class="dot"></span><span class="name">binance</span><span class="age">—</span></span>
     <span class="src-chip" data-src="coinbase"><span class="dot"></span><span class="name">coinbase</span><span class="age">—</span></span>
     <span class="src-chip" data-src="coingecko"><span class="dot"></span><span class="name">coingecko</span><span class="age">—</span></span>
+    <span class="src-chip" data-src="jupiter"><span class="dot"></span><span class="name">jupiter</span><span class="age">—</span></span>
     <a href="https://github.com/kcolbchain/depeg-monitor/blob/main/docs/DEPEG_ORACLES.md">oracles</a>
     <a href="https://github.com/kcolbchain/depeg-monitor">source</a>
     <a href="https://github.com/kcolbchain/brand">brand</a>
@@ -181,6 +182,9 @@
       <label class="label-row">
         coins
         <textarea id="coinsInput" spellcheck="false">USDC, USDT, DAI, FDUSD, PYUSD, USDe, FRAX, crvUSD, GHO, LUSD, TUSD, USDP, GUSD, USDD, sUSD, RLUSD, USDS, USD0, sDAI, agEUR</textarea>
+        <span style="text-transform:none;letter-spacing:0;color:var(--fg-faint);font-size:10px;margin-top:2px">
+          custom: <code style="color:var(--fg-muted)">XRP@2.10</code> or <code style="color:var(--fg-muted)">BTC@100000</code> · saved in localStorage
+        </span>
       </label>
       <label class="label-row">warn<span><input class="input num" type="number" id="warnBps" value="50" step="5" min="5" max="500" /> bps</span></label>
       <label class="label-row">critical<span><input class="input num" type="number" id="critBps" value="100" step="5" min="5" max="1000" /> bps</span></label>
@@ -189,6 +193,12 @@
         <span class="seg" id="viewSeg">
           <button data-view="individual" class="on">individual</button>
           <button data-view="joint">joint</button>
+        </span>
+      </label>
+      <label class="label-row">stream
+        <span class="seg" id="streamSeg">
+          <button data-stream="rest" class="on">REST</button>
+          <button data-stream="ws">WebSocket</button>
         </span>
       </label>
       <label class="label-row">mode
@@ -293,8 +303,9 @@ function indicator(series, peg, perSource, i) {
 <footer>
   Live prices from
   <a href="https://api.binance.com">Binance</a>,
-  <a href="https://api.coinbase.com">Coinbase</a>, and
-  <a href="https://api.coingecko.com">CoinGecko</a>; CoinGecko polls at 20s to stay under the free-tier rate limit, the CEXes at the configured interval (default 5s). Historical via CoinGecko's <code>/coins/{id}/market_chart</code> (auto-granularity ≤1d 5-min, ≤90d hourly, &gt;90d daily). Each observation is exposed at <code>window.depegMonitor.lastObservations</code> in the
+  <a href="https://api.coinbase.com">Coinbase</a>,
+  <a href="https://api.coingecko.com">CoinGecko</a>, and
+  <a href="https://station.jup.ag/docs/utility/price-api">Jupiter</a> (Solana DEX aggregator). REST cadence: CEXes at the configured interval (default 5s), CoinGecko at 20s, Jupiter at 5s. Toggle <code>stream</code> to <code>WebSocket</code> to switch Binance and Coinbase to public WS feeds for sub-second updates. Historical via CoinGecko's <code>/coins/{id}/market_chart</code> (auto-granularity ≤1d 5-min, ≤90d hourly, &gt;90d daily). Each observation is exposed at <code>window.depegMonitor.lastObservations</code> in the
   <a href="https://github.com/kcolbchain/depeg-monitor/blob/main/docs/DEPEG_ORACLES.md">depeg-oracles wire format</a>. The full <a href="https://github.com/kcolbchain/depeg-monitor">depeg-monitor</a> library runs server-side with direct Uniswap V3 + Curve reads. Visuals from <a href="https://github.com/kcolbchain/brand">kcolbchain/brand</a>.
 </footer>
 
@@ -302,30 +313,54 @@ function indicator(series, peg, perSource, i) {
 // ============================================================================
 // COIN_REGISTRY — top 20 stablecoins. Add an entry to extend coverage.
 // Fields: id (CoinGecko id), peg, binance pair (USDT-quoted, or null),
-// coinbase pair (USD-quoted, or null), color (series stroke).
+// coinbase pair (USD-quoted, or null), solanaMint (SPL mint address for the
+// Solana version, or null), color (series stroke).
 // ============================================================================
 const COIN_REGISTRY = {
-  USDC:  { id: 'usd-coin',          peg: 1.0, binance: 'USDCUSDT',  coinbase: 'USDC-USD',  color: '#6aa3e0' },
-  USDT:  { id: 'tether',            peg: 1.0, binance: null,        coinbase: 'USDT-USD',  color: '#6ec07a' },
-  DAI:   { id: 'dai',               peg: 1.0, binance: null,        coinbase: 'DAI-USD',   color: '#f5e03a' },
-  FDUSD: { id: 'first-digital-usd', peg: 1.0, binance: 'FDUSDUSDT', coinbase: null,        color: '#d9a05b' },
-  PYUSD: { id: 'paypal-usd',        peg: 1.0, binance: null,        coinbase: 'PYUSD-USD', color: '#4f9dd8' },
-  USDe:  { id: 'ethena-usde',       peg: 1.0, binance: 'USDEUSDT',  coinbase: null,        color: '#a9b0c0' },
-  FRAX:  { id: 'frax',              peg: 1.0, binance: null,        coinbase: null,        color: '#d77a7a' },
-  crvUSD:{ id: 'crvusd',            peg: 1.0, binance: null,        coinbase: null,        color: '#b58fd6' },
-  GHO:   { id: 'gho',               peg: 1.0, binance: null,        coinbase: null,        color: '#7ec4b6' },
-  LUSD:  { id: 'liquity-usd',       peg: 1.0, binance: null,        coinbase: null,        color: '#cda674' },
-  TUSD:  { id: 'true-usd',          peg: 1.0, binance: 'TUSDUSDT',  coinbase: null,        color: '#7b9bcc' },
-  USDP:  { id: 'paxos-standard',    peg: 1.0, binance: null,        coinbase: null,        color: '#c39073' },
-  GUSD:  { id: 'gemini-dollar',     peg: 1.0, binance: null,        coinbase: 'GUSD-USD',  color: '#5fb7c2' },
-  USDD:  { id: 'usdd',              peg: 1.0, binance: null,        coinbase: null,        color: '#a8d39c' },
-  sUSD:  { id: 'nusd',              peg: 1.0, binance: null,        coinbase: null,        color: '#9080c8' },
-  RLUSD: { id: 'ripple-usd',        peg: 1.0, binance: null,        coinbase: 'RLUSD-USD', color: '#7fb0e0' },
-  USDS:  { id: 'usds',              peg: 1.0, binance: null,        coinbase: null,        color: '#c8b870' },
-  USD0:  { id: 'usual-usd',         peg: 1.0, binance: null,        coinbase: null,        color: '#8fd6c0' },
-  sDAI:  { id: 'savings-dai',       peg: 1.0, binance: null,        coinbase: null,        color: '#e0c25a' },
-  agEUR: { id: 'ageur',             peg: 1.0, binance: null,        coinbase: null,        color: '#6b95d6' },
+  USDC:  { id: 'usd-coin',          peg: 1.0, binance: 'USDCUSDT',  coinbase: 'USDC-USD',  solanaMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', color: '#6aa3e0' },
+  USDT:  { id: 'tether',            peg: 1.0, binance: null,        coinbase: 'USDT-USD',  solanaMint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', color: '#6ec07a' },
+  DAI:   { id: 'dai',               peg: 1.0, binance: null,        coinbase: 'DAI-USD',   solanaMint: null, color: '#f5e03a' },
+  FDUSD: { id: 'first-digital-usd', peg: 1.0, binance: 'FDUSDUSDT', coinbase: null,        solanaMint: null, color: '#d9a05b' },
+  PYUSD: { id: 'paypal-usd',        peg: 1.0, binance: null,        coinbase: 'PYUSD-USD', solanaMint: '2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo', color: '#4f9dd8' },
+  USDe:  { id: 'ethena-usde',       peg: 1.0, binance: 'USDEUSDT',  coinbase: null,        solanaMint: null, color: '#a9b0c0' },
+  FRAX:  { id: 'frax',              peg: 1.0, binance: null,        coinbase: null,        solanaMint: null, color: '#d77a7a' },
+  crvUSD:{ id: 'crvusd',            peg: 1.0, binance: null,        coinbase: null,        solanaMint: null, color: '#b58fd6' },
+  GHO:   { id: 'gho',               peg: 1.0, binance: null,        coinbase: null,        solanaMint: null, color: '#7ec4b6' },
+  LUSD:  { id: 'liquity-usd',       peg: 1.0, binance: null,        coinbase: null,        solanaMint: null, color: '#cda674' },
+  TUSD:  { id: 'true-usd',          peg: 1.0, binance: 'TUSDUSDT',  coinbase: null,        solanaMint: null, color: '#7b9bcc' },
+  USDP:  { id: 'paxos-standard',    peg: 1.0, binance: null,        coinbase: null,        solanaMint: null, color: '#c39073' },
+  GUSD:  { id: 'gemini-dollar',     peg: 1.0, binance: null,        coinbase: 'GUSD-USD',  solanaMint: null, color: '#5fb7c2' },
+  USDD:  { id: 'usdd',              peg: 1.0, binance: null,        coinbase: null,        solanaMint: null, color: '#a8d39c' },
+  sUSD:  { id: 'nusd',              peg: 1.0, binance: null,        coinbase: null,        solanaMint: null, color: '#9080c8' },
+  RLUSD: { id: 'ripple-usd',        peg: 1.0, binance: null,        coinbase: 'RLUSD-USD', solanaMint: null, color: '#7fb0e0' },
+  USDS:  { id: 'usds',              peg: 1.0, binance: null,        coinbase: null,        solanaMint: 'USDSwr9ApdHk5bvJKMjzff41FfuX8bSxdKcR81vTwcA', color: '#c8b870' },
+  USD0:  { id: 'usual-usd',         peg: 1.0, binance: null,        coinbase: null,        solanaMint: null, color: '#8fd6c0' },
+  sDAI:  { id: 'savings-dai',       peg: 1.0, binance: null,        coinbase: null,        solanaMint: null, color: '#e0c25a' },
+  agEUR: { id: 'ageur',             peg: 1.0, binance: null,        coinbase: null,        solanaMint: null, color: '#6b95d6' },
 };
+
+// Aliases for non-stable tokens a user might want to track with a custom peg.
+// Maps SYMBOL → CoinGecko id; expand as needed. Combined with `SYMBOL@peg` syntax
+// in the coins textarea (e.g. `XRP@2.10`), this registers a custom asset at boot
+// without touching the static registry above.
+const NONSTABLE_ALIASES = {
+  XRP:  'ripple',
+  BTC:  'bitcoin',
+  ETH:  'ethereum',
+  SOL:  'solana',
+  BNB:  'binancecoin',
+  DOGE: 'dogecoin',
+  ADA:  'cardano',
+  AVAX: 'avalanche-2',
+  LINK: 'chainlink',
+  MATIC:'matic-network',
+  TRX:  'tron',
+  TON:  'the-open-network',
+  DOT:  'polkadot',
+  LTC:  'litecoin',
+  ATOM: 'cosmos',
+};
+const CUSTOM_COLORS = ['#d77a7a', '#6aa3e0', '#7ec4b6', '#d9a05b', '#9080c8', '#5fb7c2', '#cda674'];
 
 // ============================================================================
 // State
@@ -348,17 +383,70 @@ const POLL = {
   binance:   { interval: 5,  timer: null, lastT: 0, status: 'idle', cooldown: 0 },
   coinbase:  { interval: 5,  timer: null, lastT: 0, status: 'idle', cooldown: 0 },
   coingecko: { interval: 20, timer: null, lastT: 0, status: 'idle', cooldown: 0 },
+  jupiter:   { interval: 5,  timer: null, lastT: 0, status: 'idle', cooldown: 0 },
 };
+let streaming = 'rest';        // 'rest' | 'ws'
+const wsConns = { binance: null, coinbase: null };  // open WebSocket handles
 
 // ============================================================================
 // Helpers
 // ============================================================================
+// Parse the coins textarea. Tokens are comma- or space-separated and may use
+// `SYMBOL@peg` to declare a custom asset (e.g. `XRP@2.10`). Symbols not in
+// COIN_REGISTRY are looked up in NONSTABLE_ALIASES; unknown symbols are tried
+// against CoinGecko using a lowercased id. Newly seen custom assets are
+// registered at runtime and persisted to localStorage so they survive reloads.
 function parseCoinsInput() {
   const raw = document.getElementById('coinsInput')?.value || '';
-  return raw.split(/[,\s]+/).map(s => s.trim()).filter(Boolean)
-            .map(s => s in COIN_REGISTRY ? s
-                     : Object.keys(COIN_REGISTRY).find(k => k.toLowerCase() === s.toLowerCase()))
-            .filter(Boolean);
+  const out = [];
+  const persisted = loadCustomAssets();
+  // Re-hydrate any previously persisted custom assets so the registry is warm
+  // before parsing — guards against the order the user types them in vs how
+  // localStorage was populated.
+  for (const [sym, def] of Object.entries(persisted)) {
+    if (!(sym in COIN_REGISTRY)) COIN_REGISTRY[sym] = def;
+  }
+  let customIdx = 0;
+  for (const tok of raw.split(/[,\s]+/).map(s => s.trim()).filter(Boolean)) {
+    const m = tok.match(/^([A-Za-z0-9]+)(?:@(-?\d+(?:\.\d+)?))?$/);
+    if (!m) continue;
+    const symRaw = m[1];
+    const customPeg = m[2] != null ? parseFloat(m[2]) : null;
+    // Match against registry case-insensitively.
+    const canonical = Object.keys(COIN_REGISTRY).find(k => k.toLowerCase() === symRaw.toLowerCase());
+    let sym = canonical || symRaw.toUpperCase();
+    if (canonical && customPeg != null) {
+      // Override peg on a registered coin.
+      COIN_REGISTRY[sym] = { ...COIN_REGISTRY[sym], peg: customPeg };
+      persisted[sym] = { ...COIN_REGISTRY[sym] };
+    } else if (!canonical) {
+      // Custom asset. Look up CoinGecko id from alias map; fall back to the
+      // lowercased symbol (CoinGecko's URL convention for most coins).
+      if (customPeg == null) { /* unknown symbol with no peg — skip */ continue; }
+      const id = NONSTABLE_ALIASES[sym] || sym.toLowerCase();
+      const color = CUSTOM_COLORS[customIdx++ % CUSTOM_COLORS.length];
+      COIN_REGISTRY[sym] = { id, peg: customPeg, binance: null, coinbase: null, solanaMint: null, color, custom: true };
+      persisted[sym] = COIN_REGISTRY[sym];
+    }
+    out.push(sym);
+  }
+  saveCustomAssets(persisted);
+  return out;
+}
+function loadCustomAssets() {
+  try { return JSON.parse(localStorage.getItem('depegMonitor.customAssets') || '{}'); }
+  catch { return {}; }
+}
+function saveCustomAssets(map) {
+  // Persist only entries that aren't part of the static registry shipped with
+  // the page. Updating the static registry between deploys shouldn't strand a
+  // user's customisations, but neither should we ship them back to every user.
+  const onlyCustom = {};
+  for (const [k, v] of Object.entries(map)) {
+    if (v && (v.custom || v.peg !== 1.0)) onlyCustom[k] = v;
+  }
+  try { localStorage.setItem('depegMonitor.customAssets', JSON.stringify(onlyCustom)); }
+  catch {}
 }
 const I = () => window.depegIndicators;
 function bpsFromPeg(price, peg) { if (!Number.isFinite(price)) return NaN; return ((price - peg) / peg) * 10000; }
@@ -450,6 +538,115 @@ async function fetchCoinGecko() {
   } catch { POLL.coingecko.status = 'hot'; return {}; }
 }
 
+// Jupiter — Solana DEX aggregator. lite-api.jup.ag/price/v3 takes SPL mint
+// addresses and returns USD prices directly (not vs USDC), so we can use it
+// as a peer source for stablecoins that exist on Solana.
+async function fetchJupiter() {
+  const symbols = activeCoins.filter(s => COIN_REGISTRY[s].solanaMint);
+  if (!symbols.length) { POLL.jupiter.status = 'idle'; return {}; }
+  const mints = symbols.map(s => COIN_REGISTRY[s].solanaMint);
+  try {
+    const url = 'https://lite-api.jup.ag/price/v3?ids=' + encodeURIComponent(mints.join(','));
+    const res = await fetch(url);
+    if (!res.ok) {
+      if (res.status === 429) { POLL.jupiter.cooldown = Date.now() + 30000; POLL.jupiter.status = 'hot'; appendLog('warn', 'jupiter rate-limited — backing off 30s'); }
+      else POLL.jupiter.status = 'warn';
+      return {};
+    }
+    const j = await res.json();
+    const out = {};
+    for (const sym of symbols) {
+      const mint = COIN_REGISTRY[sym].solanaMint;
+      const p = j[mint]?.usdPrice;
+      if (Number.isFinite(p) && p > 0) out[sym] = p;
+    }
+    POLL.jupiter.status = 'ok';
+    POLL.jupiter.lastT = Date.now();
+    return out;
+  } catch { POLL.jupiter.status = 'hot'; return {}; }
+}
+
+// ============================================================================
+// WebSocket streaming — Binance + Coinbase public feeds. Pushes prices into
+// liveBySource exactly like REST. When streaming is on, REST timers for those
+// two sources are paused; CoinGecko + Jupiter keep their REST cadence.
+// ============================================================================
+function startBinanceWS() {
+  stopBinanceWS();
+  const pairs = activeCoins.map(s => COIN_REGISTRY[s].binance).filter(Boolean);
+  if (!pairs.length) return;
+  const streams = pairs.map(p => p.toLowerCase() + '@miniTicker').join('/');
+  const url = 'wss://stream.binance.com:9443/stream?streams=' + streams;
+  const pairToSym = {};
+  for (const sym of activeCoins) {
+    if (COIN_REGISTRY[sym].binance) pairToSym[COIN_REGISTRY[sym].binance] = sym;
+  }
+  try {
+    const ws = new WebSocket(url);
+    wsConns.binance = ws;
+    ws.onopen    = () => { POLL.binance.status = 'ok'; appendLog('ok', `binance WS connected (${pairs.length} pairs)`); };
+    ws.onclose   = () => { if (wsConns.binance === ws) wsConns.binance = null; if (streaming === 'ws') POLL.binance.status = 'warn'; };
+    ws.onerror   = () => { POLL.binance.status = 'hot'; };
+    ws.onmessage = (ev) => {
+      try {
+        const { data } = JSON.parse(ev.data);
+        const sym = pairToSym[data.s];
+        const price = parseFloat(data.c);
+        if (sym && Number.isFinite(price) && price > 0) {
+          recordSource('binance', { [sym]: price });
+          POLL.binance.lastT = Date.now();
+        }
+      } catch {}
+    };
+  } catch (e) { appendLog('hot', `binance WS failed: ${e.message}`); }
+}
+function stopBinanceWS() { if (wsConns.binance) { try { wsConns.binance.close(); } catch {} wsConns.binance = null; } }
+
+function startCoinbaseWS() {
+  stopCoinbaseWS();
+  const pairs = activeCoins.map(s => COIN_REGISTRY[s].coinbase).filter(Boolean);
+  if (!pairs.length) return;
+  const pairToSym = {};
+  for (const sym of activeCoins) {
+    if (COIN_REGISTRY[sym].coinbase) pairToSym[COIN_REGISTRY[sym].coinbase] = sym;
+  }
+  try {
+    const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+    wsConns.coinbase = ws;
+    ws.onopen    = () => {
+      ws.send(JSON.stringify({ type: 'subscribe', product_ids: pairs, channels: ['ticker'] }));
+      POLL.coinbase.status = 'ok';
+      appendLog('ok', `coinbase WS connected (${pairs.length} pairs)`);
+    };
+    ws.onclose   = () => { if (wsConns.coinbase === ws) wsConns.coinbase = null; if (streaming === 'ws') POLL.coinbase.status = 'warn'; };
+    ws.onerror   = () => { POLL.coinbase.status = 'hot'; };
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        if (msg.type !== 'ticker') return;
+        const sym = pairToSym[msg.product_id];
+        const price = parseFloat(msg.price);
+        if (sym && Number.isFinite(price) && price > 0) {
+          recordSource('coinbase', { [sym]: price });
+          POLL.coinbase.lastT = Date.now();
+        }
+      } catch {}
+    };
+  } catch (e) { appendLog('hot', `coinbase WS failed: ${e.message}`); }
+}
+function stopCoinbaseWS() { if (wsConns.coinbase) { try { wsConns.coinbase.close(); } catch {} wsConns.coinbase = null; } }
+
+function setStream(next) {
+  streaming = next;
+  document.querySelectorAll('#streamSeg button').forEach(b => b.classList.toggle('on', b.dataset.stream === next));
+  if (next === 'ws') {
+    startBinanceWS(); startCoinbaseWS();
+  } else {
+    stopBinanceWS(); stopCoinbaseWS();
+  }
+  scheduleAll();   // restart timers under the new mode
+}
+
 // ============================================================================
 // Historical loader
 // ============================================================================
@@ -473,7 +670,7 @@ async function fetchHistory(symbol, days) {
 // Source status header
 // ============================================================================
 function renderSourceChips() {
-  for (const src of ['binance', 'coinbase', 'coingecko']) {
+  for (const src of ['binance', 'coinbase', 'coingecko', 'jupiter']) {
     const el = document.querySelector(`.src-chip[data-src=${src}]`);
     if (!el) continue;
     el.classList.remove('ok', 'warn', 'hot');
@@ -652,6 +849,7 @@ function renderCards() {
         <span class="src">binance</span>  <span class="val" data-src="binance">—</span>
         <span class="src">coinbase</span> <span class="val" data-src="coinbase">—</span>
         <span class="src">coingecko</span><span class="val" data-src="coingecko">—</span>
+        <span class="src">jupiter</span> <span class="val" data-src="jupiter">—</span>
       </div>
     </div>`;
   }).join('');
@@ -672,7 +870,7 @@ function aggregateAndRender() {
   for (const sym of activeCoins) {
     const per = liveBySource[sym] || {};
     const fresh = {};
-    for (const src of ['binance', 'coinbase', 'coingecko']) {
+    for (const src of ['binance', 'coinbase', 'coingecko', 'jupiter']) {
       const r = per[src];
       if (r && r.price > 0 && (t - r.t) < FRESH) fresh[src] = r.price;
     }
@@ -697,7 +895,7 @@ function aggregateAndRender() {
     deltaEl.textContent = `${fmtBps(bps)} vs $${peg.toFixed(2)}`;
     setStatusChip(card.querySelector('[data-role=status]'), sev);
 
-    for (const srcName of ['binance', 'coinbase', 'coingecko']) {
+    for (const srcName of ['binance', 'coinbase', 'coingecko', 'jupiter']) {
       const r = per[srcName];
       const valEl = card.querySelector(`[data-src=${srcName}]`);
       if (r && Number.isFinite(r.price) && (t - r.t) < FRESH) {
@@ -778,6 +976,13 @@ async function tickCoinGecko() {
   aggregateAndRender();
   renderSourceChips();
 }
+async function tickJupiter() {
+  if (POLL.jupiter.cooldown && Date.now() < POLL.jupiter.cooldown) { POLL.jupiter.status = 'warn'; renderSourceChips(); return; }
+  const r = await fetchJupiter();
+  recordSource('jupiter', r);
+  aggregateAndRender();
+  renderSourceChips();
+}
 
 function scheduleAll() {
   // Cancel everything
@@ -786,15 +991,22 @@ function scheduleAll() {
   }
   if (mode !== 'live') return;
   const userSec = Math.max(1, parseInt(document.getElementById('pollSec').value, 10));
-  POLL.binance.interval  = userSec;
-  POLL.coinbase.interval = userSec;
-  // CoinGecko stays at 20s minimum to dodge the rate limit. The user-set value
-  // is honoured when it's slower than 20s.
+  // Binance / Coinbase REST run only while we're not WebSocket-streaming them.
+  // CoinGecko stays REST-only (no public WS for /simple/price). Jupiter is REST.
+  // Both rate-limited sources get a floor on their interval.
+  POLL.binance.interval   = userSec;
+  POLL.coinbase.interval  = userSec;
   POLL.coingecko.interval = Math.max(20, userSec);
-  POLL.binance.timer   = setInterval(tickBinance,   POLL.binance.interval   * 1000);
-  POLL.coinbase.timer  = setInterval(tickCoinbase,  POLL.coinbase.interval  * 1000);
+  POLL.jupiter.interval   = Math.max(5, userSec);
+
+  if (streaming !== 'ws') {
+    POLL.binance.timer  = setInterval(tickBinance,  POLL.binance.interval  * 1000);
+    POLL.coinbase.timer = setInterval(tickCoinbase, POLL.coinbase.interval * 1000);
+    tickBinance(); tickCoinbase();
+  }
   POLL.coingecko.timer = setInterval(tickCoinGecko, POLL.coingecko.interval * 1000);
-  tickBinance(); tickCoinbase(); tickCoinGecko();
+  POLL.jupiter.timer   = setInterval(tickJupiter,   POLL.jupiter.interval   * 1000);
+  tickCoinGecko(); tickJupiter();
 }
 
 // ============================================================================
@@ -965,6 +1177,8 @@ function applyCoins() {
   drawLegend();
   if (view === 'joint') drawJointChart();
   if (view === 'individual') drawAllCardCharts();
+  // If WebSocket streaming is on, re-subscribe with the updated symbol set.
+  if (streaming === 'ws') { startBinanceWS(); startCoinbaseWS(); }
 }
 
 function appendLog(level, msg) {
@@ -981,16 +1195,26 @@ function appendLog(level, msg) {
 // ============================================================================
 function boot() {
   document.getElementById('bootTs').textContent = new Date().toLocaleTimeString();
+  // Restore the user's coin textarea from a prior session before parsing.
+  try {
+    const saved = localStorage.getItem('depegMonitor.coinsInput');
+    if (saved) document.getElementById('coinsInput').value = saved;
+  } catch {}
   setView('individual');
   applyCoins();
   renderIndicatorList();
 
-  document.getElementById('coinsInput').addEventListener('change', () => { applyCoins(); if (mode === 'live') scheduleAll(); else loadHistorical(mode); });
+  document.getElementById('coinsInput').addEventListener('change', () => {
+    try { localStorage.setItem('depegMonitor.coinsInput', document.getElementById('coinsInput').value); } catch {}
+    applyCoins();
+    if (mode === 'live') scheduleAll(); else loadHistorical(mode);
+  });
   document.getElementById('pollSec').addEventListener('change', scheduleAll);
   document.getElementById('warnBps').addEventListener('change', () => { if (view === 'joint') drawJointChart(); else drawAllCardCharts(); });
   document.getElementById('critBps').addEventListener('change', () => { if (view === 'joint') drawJointChart(); else drawAllCardCharts(); detectAllEvents(); });
   document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
   document.querySelectorAll('#viewSeg button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+  document.querySelectorAll('#streamSeg button').forEach(b => b.addEventListener('click', () => setStream(b.dataset.stream)));
 
   document.getElementById('sandboxRun').addEventListener('click', compileSandbox);
   document.getElementById('sandboxClear').addEventListener('click', () => { sandboxFn = null; appendLog('ok', 'sandbox cleared'); if (view === 'individual') drawAllCardCharts(); });

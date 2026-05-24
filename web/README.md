@@ -28,12 +28,32 @@ python3 -m http.server -d web 8080
 ## Coverage
 
 20 stablecoins ship in the default coin list. Edit the textarea to add or
-remove. New symbols are added by appending an entry to `COIN_REGISTRY` at the
-top of the `<script>` block in `index.html`:
+remove. New symbols can be registered three ways:
 
-```js
-NEW: { id: 'coingecko-id', peg: 1.0, binance: 'NEWUSDT', coinbase: null, color: '#hex' },
-```
+1. **Static registry** — append an entry to `COIN_REGISTRY` at the top of the
+   `<script>` block in `index.html`:
+   ```js
+   NEW: { id: 'coingecko-id', peg: 1.0, binance: 'NEWUSDT',
+          coinbase: null, solanaMint: null, color: '#hex' },
+   ```
+2. **Custom peg on an existing coin** — append `@peg` to its symbol in the
+   coins textarea:
+   ```
+   USDC@1.0001        # override the configured peg for one session
+   ```
+3. **Custom non-stable asset** — append `SYMBOL@peg` for any token not in the
+   registry. The symbol is looked up in `NONSTABLE_ALIASES` (XRP, BTC, ETH,
+   SOL, BNB, DOGE, ADA, AVAX, LINK, MATIC, TRX, TON, DOT, LTC, ATOM, ...);
+   unknown symbols fall back to a CoinGecko id derived from the lowercased
+   symbol.
+   ```
+   XRP@2.10           # track XRP against a 2.10 USD target
+   BTC@100000         # 100k support level
+   ```
+
+Custom assets and the full coins textarea are persisted to `localStorage`
+(`depegMonitor.customAssets`, `depegMonitor.coinsInput`) so they survive
+reloads.
 
 ## Polling model
 
@@ -42,9 +62,10 @@ the others:
 
 | Source | Default interval | Notes |
 |---|---|---|
-| Binance     | 5s (= refresh) | Single batched request for every coin with a Binance pair |
-| Coinbase    | 5s (= refresh) | One request per coin (Coinbase has no batch endpoint) |
-| CoinGecko   | max(20s, refresh) | Free-tier rate-limited (30 calls/min). On HTTP 429 the source backs off 60s and the chip turns red |
+| Binance     | 5s (= refresh) | Single batched request for every coin with a Binance pair. Public WebSocket (`stream.binance.com:9443`) is opt-in via the `stream` toggle for sub-second updates. |
+| Coinbase    | 5s (= refresh) | One request per coin (no batch endpoint). Public WebSocket (`ws-feed.exchange.coinbase.com`) is opt-in via the `stream` toggle. |
+| CoinGecko   | max(20s, refresh) | Free-tier rate-limited (30 calls/min). On HTTP 429 the source backs off 60s and the chip turns red. REST-only. |
+| Jupiter     | 5s (= refresh) | Solana DEX aggregator — [`lite-api.jup.ag/price/v3`](https://station.jup.ag/docs/utility/price-api) returns USD prices directly by SPL mint address. Coverage is whichever coins in the registry have a `solanaMint` set (USDC, USDT, PYUSD, USDS today). |
 
 The card price is the median of whichever sources are *fresh* (responded in
 the last 60s). If CoinGecko is on cooldown, the median falls back to
@@ -106,11 +127,10 @@ that wraps the same data with a signature is described in the spec.
 
 ## What's not here yet
 
-Tracked as follow-ups:
+Tracked as GitHub issues:
 
-- **Solana / non-Ethereum DEX** prices (Jupiter aggregator).
-- **WebSocket streaming** via Binance/Coinbase public feeds.
-- **Custom non-stable peg targets** (UI for entering peg per row).
 - **Drag-to-zoom** on the historical chart.
-- **Observer signing + JSONL output** — the dashboard would write
-  signed observations to the File System Access API.
+- **Server-side observer mode** with Ed25519 signing + JSONL output (per the
+  [oracle spec](../docs/DEPEG_ORACLES.md)).
+- **Aggregator reference implementation** that consumes signed observations
+  from N observers and emits a quorum view.
