@@ -75,8 +75,8 @@
   .chart .legend { display: flex; gap: var(--s-3); font-size: var(--t-1); color: var(--fg-muted); flex-wrap: wrap; max-width: 70%; justify-content: flex-end; }
   .chart .legend span { white-space: nowrap; }
   .chart .legend .swatch { display: inline-block; width: 10px; height: 2px; vertical-align: 3px; margin-right: 6px; background: currentColor; }
-  svg.ts { display: block; width: 100%; height: 280px; }
-  svg.card-chart { display: block; width: 100%; height: 140px; }
+  svg.ts { display: block; width: 100%; height: 320px; }
+  svg.card-chart { display: block; width: 100%; height: 220px; }
   svg.spark { display: block; width: 100%; height: 44px; }
   svg .series { fill: none; stroke-width: 1.4; stroke-linejoin: round; }
   svg .series.dim { opacity: 0.25; }
@@ -715,29 +715,59 @@ function pathFromBpsSeries(bpsSeries, ctx) {
   }).join(' ');
 }
 
+// Compute the absolute-bps Y range for a chart given one or more bps series.
+// Floors at 5 bps so a perfectly steady coin doesn't divide-by-zero, then pads
+// the observed max by 15% so the line doesn't kiss the edge. Guide lines and
+// labels outside the resulting range are hidden by the helpers below.
+function autoYRange(bpsSeriesList, opts) {
+  const min = (opts && opts.min) || 5;
+  let maxAbs = 0;
+  for (const series of bpsSeriesList) {
+    for (const p of series) {
+      const v = p.value;
+      if (Number.isFinite(v) && Math.abs(v) > maxAbs) maxAbs = Math.abs(v);
+    }
+  }
+  return Math.max(min, maxAbs * 1.15);
+}
+
 function guideLines(ctx) {
   const warnBps = parseFloat(document.getElementById('warnBps').value);
   const critBps = parseFloat(document.getElementById('critBps').value);
   const xR = ctx.width - ctx.padR;
-  return [
-    `<line class="hot"  x1="${ctx.padL}" y1="${ctx.ySVG(critBps)}"  x2="${xR}" y2="${ctx.ySVG(critBps)}"  />`,
-    `<line class="warn" x1="${ctx.padL}" y1="${ctx.ySVG(warnBps)}"  x2="${xR}" y2="${ctx.ySVG(warnBps)}"  />`,
-    `<line class="peg"  x1="${ctx.padL}" y1="${ctx.ySVG(0)}"        x2="${xR}" y2="${ctx.ySVG(0)}"        />`,
-    `<line class="warn" x1="${ctx.padL}" y1="${ctx.ySVG(-warnBps)}" x2="${xR}" y2="${ctx.ySVG(-warnBps)}" />`,
-    `<line class="hot"  x1="${ctx.padL}" y1="${ctx.ySVG(-critBps)}" x2="${xR}" y2="${ctx.ySVG(-critBps)}" />`,
-  ].join('');
+  const inRange = (b) => Math.abs(b) <= ctx.visualRange;
+  const parts = [
+    `<line class="peg" x1="${ctx.padL}" y1="${ctx.ySVG(0)}" x2="${xR}" y2="${ctx.ySVG(0)}" />`,
+  ];
+  if (inRange(critBps)) {
+    parts.push(`<line class="hot"  x1="${ctx.padL}" y1="${ctx.ySVG(critBps)}"  x2="${xR}" y2="${ctx.ySVG(critBps)}"  />`);
+    parts.push(`<line class="hot"  x1="${ctx.padL}" y1="${ctx.ySVG(-critBps)}" x2="${xR}" y2="${ctx.ySVG(-critBps)}" />`);
+  }
+  if (inRange(warnBps)) {
+    parts.push(`<line class="warn" x1="${ctx.padL}" y1="${ctx.ySVG(warnBps)}"  x2="${xR}" y2="${ctx.ySVG(warnBps)}"  />`);
+    parts.push(`<line class="warn" x1="${ctx.padL}" y1="${ctx.ySVG(-warnBps)}" x2="${xR}" y2="${ctx.ySVG(-warnBps)}" />`);
+  }
+  return parts.join('');
 }
 
 function axisLabels(ctx) {
   const warnBps = parseFloat(document.getElementById('warnBps').value);
   const critBps = parseFloat(document.getElementById('critBps').value);
-  return [
-    `<text class="axis-label" x="4" y="${ctx.ySVG(critBps)+3}">+${critBps}</text>`,
-    `<text class="axis-label" x="4" y="${ctx.ySVG(warnBps)+3}">+${warnBps}</text>`,
-    `<text class="axis-label" x="4" y="${ctx.ySVG(0)+3}">peg</text>`,
-    `<text class="axis-label" x="4" y="${ctx.ySVG(-warnBps)+3}">-${warnBps}</text>`,
-    `<text class="axis-label" x="4" y="${ctx.ySVG(-critBps)+3}">-${critBps}</text>`,
-  ].join('');
+  const inRange = (b) => Math.abs(b) <= ctx.visualRange;
+  const parts = [`<text class="axis-label" x="4" y="${ctx.ySVG(0) + 3}">peg</text>`];
+  if (inRange(critBps)) {
+    parts.push(`<text class="axis-label" x="4" y="${ctx.ySVG(critBps) + 3}">+${critBps}</text>`);
+    parts.push(`<text class="axis-label" x="4" y="${ctx.ySVG(-critBps) + 3}">-${critBps}</text>`);
+  }
+  if (inRange(warnBps)) {
+    parts.push(`<text class="axis-label" x="4" y="${ctx.ySVG(warnBps) + 3}">+${warnBps}</text>`);
+    parts.push(`<text class="axis-label" x="4" y="${ctx.ySVG(-warnBps) + 3}">-${warnBps}</text>`);
+  }
+  // Top + bottom of the visible range — gives the reader the actual scale.
+  const top = ctx.visualRange;
+  const fmt = (b) => Math.abs(b) >= 100 ? b.toFixed(0) : b.toFixed(1);
+  parts.push(`<text class="axis-label" x="${ctx.width - ctx.padR - 28}" y="${ctx.padT + 8}">y: ±${fmt(top)}</text>`);
+  return parts.join('');
 }
 
 function computeIndicatorsForSeries(sym, series) {
@@ -769,15 +799,24 @@ function computeIndicatorsForSeries(sym, series) {
 function drawJointChart() {
   if (view !== 'joint') return;
   const svg = document.getElementById('tsChart');
-  const ctx = makeChartCtx(800, 280, 40, 8, 12, 18, 300);
   const store = (mode === 'live') ? liveHistory : histHistory;
-  const parts = [guideLines(ctx), axisLabels(ctx)];
+
+  // Pre-compute bps-domain series so the Y range fits the data, not a fixed ±300.
+  const seriesByCoin = [];
   for (const sym of activeCoins) {
-    const series = store[sym] || [];
-    if (series.length < 1) continue;
+    const raw = store[sym] || [];
+    if (raw.length < 1) continue;
     const peg = COIN_REGISTRY[sym].peg;
-    const bpsSeries = series.map(p => ({ t: p.t, value: bpsFromPeg(p.price, peg) }));
-    const d = pathFromBpsSeries(bpsSeries, ctx);
+    seriesByCoin.push({ sym, bps: raw.map(p => ({ t: p.t, value: bpsFromPeg(p.price, peg) })) });
+  }
+  const warnBps = parseFloat(document.getElementById('warnBps').value);
+  // Joint chart floor at warn so the guide band is always visible.
+  const visualRange = autoYRange(seriesByCoin.map(s => s.bps), { min: warnBps * 1.5 });
+  const ctx = makeChartCtx(800, 320, 40, 8, 12, 18, visualRange);
+  svg.setAttribute('viewBox', `0 0 ${ctx.width} ${ctx.height}`);
+  const parts = [guideLines(ctx), axisLabels(ctx)];
+  for (const { sym, bps } of seriesByCoin) {
+    const d = pathFromBpsSeries(bps, ctx);
     parts.push(`<path class="series" stroke="${COIN_REGISTRY[sym].color}" d="${d}" />`);
   }
   svg.innerHTML = parts.join('');
@@ -787,12 +826,15 @@ function drawCardChart(sym, svg) {
   const store = (mode === 'live') ? liveHistory : histHistory;
   const series = store[sym] || [];
   const peg = COIN_REGISTRY[sym].peg;
-  const ctx = makeChartCtx(400, 140, 32, 6, 8, 14, 200);
-  svg.setAttribute('viewBox', `0 0 ${ctx.width} ${ctx.height}`);
   if (series.length < 1) { svg.innerHTML = ''; return; }
   const bpsSeries = series.map(p => ({ t: p.t, value: bpsFromPeg(p.price, peg) }));
-  const parts = [guideLines(ctx), axisLabels(ctx)];
   const indicators = computeIndicatorsForSeries(sym, series);
+  // Auto-fit Y to whichever is wider: the price series or any active indicator.
+  // 5 bps floor keeps stable coins from collapsing the chart to a single line.
+  const visualRange = autoYRange([bpsSeries, ...indicators.map(i => i.series)], { min: 5 });
+  const ctx = makeChartCtx(400, 220, 32, 6, 8, 14, visualRange);
+  svg.setAttribute('viewBox', `0 0 ${ctx.width} ${ctx.height}`);
+  const parts = [guideLines(ctx), axisLabels(ctx)];
   // Underlay: indicators (so the price line sits on top)
   for (const ind of indicators) {
     const d = pathFromBpsSeries(ind.series, ctx);
