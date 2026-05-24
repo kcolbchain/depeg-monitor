@@ -35,6 +35,9 @@ class UniswapV3Source(PriceSource):
     def __init__(self, rpc_url: str):
         self.w3 = Web3(Web3.HTTPProvider(rpc_url))
 
+    def supports(self, symbol: str) -> bool:
+        return symbol.upper() in POOLS
+
     async def get_price(self, symbol: str) -> float | None:
         pool_addr = POOLS.get(symbol.upper())
         if not pool_addr:
