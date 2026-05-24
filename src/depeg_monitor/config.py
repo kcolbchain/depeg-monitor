@@ -29,8 +29,8 @@ class AlertsConfig(BaseModel):
     # Telegram alert configuration
     telegram_bot_token: Optional[str] = None
     telegram_chat_id: Optional[str] = None
-    # SQLite event logging
-    db_path: Optional[str] = "depeg_events.db"
+    # SQLite event logging — opt-in; set a path to enable
+    db_path: Optional[str] = None
 
 
 class MonitorConfig(BaseModel):

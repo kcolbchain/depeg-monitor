@@ -15,16 +15,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.depeg_monitor.monitor import DepegMonitor
-from src.depeg_monitor.config import (
+from depeg_monitor.monitor import DepegMonitor
+from depeg_monitor.config import (
     MonitorConfig,
     StablecoinConfig,
     SourcesConfig,
     DexSourceConfig,
     AlertsConfig,
 )
-from src.depeg_monitor.sources.base import PriceSource
-from src.depeg_monitor.alerts.base import Alert, AlertLevel
+from depeg_monitor.sources.base import PriceSource
+from depeg_monitor.alerts.base import Alert, AlertLevel
 
 
 # --- Mock Price Sources ---
@@ -149,8 +149,8 @@ async def test_normal_ops_slight_deviation(monitor_with_mocks, mock_alert):
 
 
 @pytest.mark.asyncio
-async def test_warn_level_depeg_above(monitor_with_mocks, mock_alert):
-    """Price at 0.7% deviation should trigger a WARN alert."""
+async def test_warn_level_below_peg(monitor_with_mocks, mock_alert):
+    """Price at 0.7% below peg should trigger a WARN alert."""
     monitor = monitor_with_mocks
     # 0.993 = 0.7% below peg, above 0.5% warn threshold
     monitor.sources = [MockPriceSource("mock-cex", {"USDC": 0.993})]
@@ -165,7 +165,7 @@ async def test_warn_level_depeg_above(monitor_with_mocks, mock_alert):
 
 
 @pytest.mark.asyncio
-async def test_warn_level_depeg_below_peg(monitor_with_mocks, mock_alert):
+async def test_warn_level_above_peg(monitor_with_mocks, mock_alert):
     """Price above peg at warn level should also trigger WARN."""
     monitor = monitor_with_mocks
     monitor.sources = [MockPriceSource("mock-cex", {"USDC": 1.007})]

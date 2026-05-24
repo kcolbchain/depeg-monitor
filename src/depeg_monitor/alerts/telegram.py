@@ -10,13 +10,16 @@ Configure via config:
 from __future__ import annotations
 
 import logging
-from urllib.parse import quote
 
 import aiohttp
 
 from .base import Alert, AlertLevel
 
 logger = logging.getLogger("depeg-monitor")
+
+
+def _redact(message: str, token: str) -> str:
+    return message.replace(token, "<redacted>") if token else message
 
 
 class TelegramAlert(Alert):
@@ -99,11 +102,6 @@ class TelegramAlert(Alert):
             "disable_web_page_preview": True,
         }
 
-        # For critical alerts, also disable notification sound if supported
-        if level == AlertLevel.CRITICAL:
-            # Critical alerts should be noisy - don't disable_notification
-            pass
-
         session = await self._get_session()
 
         try:
@@ -119,16 +117,16 @@ class TelegramAlert(Alert):
                 elif resp.status == 403:
                     logger.error("Telegram: Bot not in chat or chat_id invalid")
                 elif resp.status == 429:
-                    # Rate limited - back off
                     retry_after = resp.headers.get("Retry-After", "30")
                     logger.warning(f"Telegram rate limited, retry after {retry_after}s")
                 else:
                     logger.warning(f"Telegram returned {resp.status}")
 
         except aiohttp.ClientError as e:
-            logger.warning(f"Telegram connection error: {e}")
+            # Redact bot token from any URL embedded in the error message.
+            logger.warning(f"Telegram connection error: {_redact(str(e), self._token)}")
         except Exception as e:
-            logger.error(f"Telegram unexpected error: {e}")
+            logger.error(f"Telegram unexpected error: {_redact(str(e), self._token)}")
 
     async def close(self) -> None:
         """Close the HTTP session."""

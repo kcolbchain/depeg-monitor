@@ -1,6 +1,9 @@
 """Curve stableswap pool price source — reads virtual price from Curve pools."""
 
+from typing import Any
+
 from web3 import Web3
+
 from .base import PriceSource
 
 # Major Curve stableswap pools on Ethereum mainnet
@@ -88,7 +91,7 @@ class CurvePoolSource(PriceSource):
 
     def __init__(self, rpc_url: str):
         self.w3 = Web3(Web3.HTTPProvider(rpc_url))
-        self._contracts: dict[str, any] = {}
+        self._contracts: dict[str, Any] = {}
 
     def _get_pool_contract(self, pool_addr: str):
         """Get or create a cached pool contract instance."""
