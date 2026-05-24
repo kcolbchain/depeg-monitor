@@ -1,0 +1,55 @@
+/* depeg-monitor web — synced from kcolbchain/brand/tokens.css
+ * Update by copying the upstream file; don't drift the values.
+ * https://github.com/kcolbchain/brand/blob/main/tokens.css
+ */
+:root {
+  /* Surfaces — near-black, one elevation, hairline borders */
+  --bg:        #0b0b0d;
+  --bg-elev:   #131316;
+  --line:      #1f1f24;
+
+  /* Type — three weights of grey, nothing more */
+  --fg:        #ededf0;
+  --fg-muted:  #8a8a92;
+  --fg-faint:  #5a5a62;
+
+  /* The mark — used once per view, by intent */
+  --mark:      #f5e03a;
+  --mark-soft: rgba(245, 224, 58, 0.14);
+
+  /* State — for status only, never branding. */
+  --ok:        #6ec07a;
+  --warn:      #d8b04d;
+  --hot:       #d97171;
+  --ok-soft:   rgba(110, 192, 122, 0.14);
+  --warn-soft: rgba(216, 176, 77, 0.14);
+  --hot-soft:  rgba(217, 113, 113, 0.14);
+
+  /* Type system — JetBrains Mono, with system mono as fallback */
+  --font: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --t-1:  11px;
+  --t-2:  13px;
+  --t-3:  15px;
+  --t-4:  20px;
+  --t-5:  28px;
+  --t-6:  44px;
+
+  /* Space */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 16px;
+  --s-4: 24px;
+  --s-5: 40px;
+  --s-6: 64px;
+  --s-7: 96px;
+  --s-8: 160px;
+
+  /* Structure */
+  --col:    1200px;
+  --radius: 4px;
+
+  /* Data series — desaturated issuer palette, see brand/pages/charts.html */
+  --s-usdc: #6aa3e0;
+  --s-usdt: #6ec07a;
+  --s-dai:  var(--mark);
+}
