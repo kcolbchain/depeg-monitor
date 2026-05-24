@@ -76,10 +76,26 @@ class DepegMonitor:
             for alert in self.alerts:
                 await alert.send(level, coin.symbol, price, coin.peg, source.name)
 
+    def _log_coverage(self) -> None:
+        """Log which (source × stablecoin) pairs will actually be exercised.
+
+        Each source's ``supports(symbol)`` decides whether that pair shows up;
+        a source with no overlap is still in the list but will be a no-op for
+        the configured symbols. Surfacing this on startup catches misconfigs
+        like a delisted exchange pair without waiting for the first cycle.
+        """
+        symbols = [c.symbol for c in self.config.stablecoins]
+        for source in self.sources:
+            covered = [s for s in symbols if source.supports(s)]
+            label = ", ".join(covered) if covered else "(none)"
+            logger.info(f"  {source.name:<11} → {label}")
+
     async def run(self) -> None:
         logger.info(f"Starting depeg-monitor — checking every {self.config.interval_seconds}s")
         logger.info(f"Watching: {', '.join(c.symbol for c in self.config.stablecoins)}")
         logger.info(f"Sources: {', '.join(s.name for s in self.sources)}")
+        logger.info("Source coverage:")
+        self._log_coverage()
 
         while True:
             try:

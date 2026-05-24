@@ -90,6 +90,9 @@ class CurvePoolSource(PriceSource):
         self.w3 = Web3(Web3.HTTPProvider(rpc_url))
         self._contracts: dict[str, any] = {}
 
+    def supports(self, symbol: str) -> bool:
+        return symbol.upper() in CURVE_POOLS
+
     def _get_pool_contract(self, pool_addr: str):
         """Get or create a cached pool contract instance."""
         if pool_addr not in self._contracts:
