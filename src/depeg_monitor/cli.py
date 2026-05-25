@@ -124,5 +124,11 @@ def main():
     asyncio.run(monitor.run())
 
 
+def observer():
+    """Run server-side observer mode."""
+    from depeg_monitor.observer import main as obs_main
+    obs_main()
+
+
 if __name__ == "__main__":
     main()
