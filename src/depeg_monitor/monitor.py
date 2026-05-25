@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from typing import Sequence
+from aiohttp import web
 
 from .config import MonitorConfig, StablecoinConfig
 from .sources.base import PriceSource
@@ -32,7 +33,6 @@ class DepegMonitor:
             elif cex == "coinbase":
                 sources.append(CoinbaseSource())
         sources.append(UniswapV3Source(self.config.sources.dex.rpc_url))
-        # Curve pool source (same RPC)
         sources.append(CurvePoolSource(self.config.sources.dex.rpc_url))
         return sources
 
@@ -44,7 +44,6 @@ class DepegMonitor:
             alerts.append(WebhookAlert(self.config.alerts.discord_webhook, "discord"))
         if self.config.alerts.slack_webhook:
             alerts.append(WebhookAlert(self.config.alerts.slack_webhook, "slack"))
-        # Telegram alert support
         if self.config.alerts.telegram_bot_token and self.config.alerts.telegram_chat_id:
             alerts.append(
                 TelegramAlert(
@@ -52,7 +51,6 @@ class DepegMonitor:
                     self.config.alerts.telegram_chat_id,
                 )
             )
-        # SQLite event logging
         if self.config.alerts.db_path:
             alerts.append(DatabaseAlert(self.config.alerts.db_path))
         return alerts
@@ -72,30 +70,32 @@ class DepegMonitor:
             elif deviation >= coin.warn_threshold:
                 level = AlertLevel.WARN
             else:
-                continue  # Within normal range
+                continue
             for alert in self.alerts:
                 await alert.send(level, coin.symbol, price, coin.peg, source.name)
 
     def _log_coverage(self) -> None:
-        """Log which (source × stablecoin) pairs will actually be exercised.
-
-        Each source's ``supports(symbol)`` decides whether that pair shows up;
-        a source with no overlap is still in the list but will be a no-op for
-        the configured symbols. Surfacing this on startup catches misconfigs
-        like a delisted exchange pair without waiting for the first cycle.
-        """
         symbols = [c.symbol for c in self.config.stablecoins]
         for source in self.sources:
             covered = [s for s in symbols if source.supports(s)]
             label = ", ".join(covered) if covered else "(none)"
-            logger.info(f"  {source.name:<11} → {label}")
+            logger.info(f"  {source.name:<11} \u2192 {label}")
 
     async def run(self) -> None:
-        logger.info(f"Starting depeg-monitor — checking every {self.config.interval_seconds}s")
+        logger.info(f"Starting depeg-monitor \u2014 checking every {self.config.interval_seconds}s")
         logger.info(f"Watching: {', '.join(c.symbol for c in self.config.stablecoins)}")
         logger.info(f"Sources: {', '.join(s.name for s in self.sources)}")
         logger.info("Source coverage:")
         self._log_coverage()
+
+        health_app = web.Application()
+        health_app.router.add_get("/health", self._handle_health)
+        health_port = getattr(self.config, "health_port", 8080)
+        health_runner = web.AppRunner(health_app)
+        await health_runner.setup()
+        health_site = web.TCPSite(health_runner, "127.0.0.1", health_port)
+        await health_site.start()
+        logger.info(f"Health endpoint listening on 127.0.0.1:{health_port}/health")
 
         while True:
             try:
@@ -103,3 +103,8 @@ class DepegMonitor:
             except Exception as e:
                 logger.error(f"Monitor cycle error: {e}")
             await asyncio.sleep(self.config.interval_seconds)
+
+    async def _handle_health(self, request: web.Request) -> web.Response:
+        return web.json_response(
+            {"status": "ok", "service": "depeg-monitor", "checks": len(self.sources)}
+        )

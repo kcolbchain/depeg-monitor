@@ -1,0 +1,26 @@
+[Unit]
+Description=depeg-monitor — Real-time stablecoin depeg detection and alerting
+Documentation=https://github.com/kcolbchain/depeg-monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=depeg-mon
+Group=depeg-mon
+WorkingDirectory=/opt/depeg-monitor
+EnvironmentFile=-/etc/depeg-monitor/env
+ExecStart=/opt/depeg-monitor/.venv/bin/depeg-monitor --config /etc/depeg-monitor/config.yaml
+Restart=always
+RestartSec=30
+StartLimitInterval=300
+StartLimitBurst=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/depeg-monitor/data
+
+[Install]
+WantedBy=multi-user.target
