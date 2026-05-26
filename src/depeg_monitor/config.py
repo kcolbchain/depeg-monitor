@@ -26,10 +26,8 @@ class AlertsConfig(BaseModel):
     console: bool = True
     discord_webhook: Optional[str] = None
     slack_webhook: Optional[str] = None
-    # Telegram alert configuration
     telegram_bot_token: Optional[str] = None
     telegram_chat_id: Optional[str] = None
-    # SQLite event logging — opt-in; set a path to enable
     db_path: Optional[str] = None
 
 
@@ -42,3 +40,4 @@ class MonitorConfig(BaseModel):
     sources: SourcesConfig = SourcesConfig()
     alerts: AlertsConfig = AlertsConfig()
     interval_seconds: int = 30
+    health_port: int = 8080
