@@ -53,3 +53,23 @@
   --s-usdt: #6ec07a;
   --s-dai:  var(--mark);
 }
+.theme-toggle {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.45rem 0.8rem;
+  background: var(--bg-elev);
+  color: var(--fg);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+}
+
+.theme-toggle:hover {
+  color: var(--fg);
+  border-color: var(--mark);
+}
+
+.theme-toggle[aria-pressed="true"] {
+  border-color: var(--mark);
+}

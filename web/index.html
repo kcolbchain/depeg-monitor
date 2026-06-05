@@ -3,22 +3,101 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
 <title>depeg-monitor — live stablecoin peg dashboard</title>
 <meta name="description" content="Open-source depeg dashboard — per-card charts, analytics indicators, sandbox for local algorithms, and the depeg-oracles spec. By kcolbchain." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="tokens.css" />
+<script>
+  (() => {
+    const key = 'depeg-monitor-theme';
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+
+    function readStoredTheme() {
+      try {
+        const value = localStorage.getItem(key);
+        return value === 'dark' || value === 'light' ? value : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function syncThemeButton(theme) {
+      const btn = document.getElementById('themeToggle');
+      if (!btn) return;
+      btn.textContent = theme === 'dark' ? 'light' : 'dark';
+      btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+      btn.setAttribute('aria-pressed', String(theme === 'dark'));
+    }
+
+    function applyTheme(theme, persist = false) {
+      document.documentElement.dataset.theme = theme;
+      if (persist) {
+        try {
+          localStorage.setItem(key, theme);
+        } catch {}
+      }
+      syncThemeButton(theme);
+    }
+
+    const savedTheme = readStoredTheme();
+    const systemTheme = mql.matches ? 'dark' : 'light';
+    applyTheme(savedTheme || systemTheme);
+
+    if (!savedTheme) {
+      mql.addEventListener('change', (event) => {
+        if (readStoredTheme()) return;
+        applyTheme(event.matches ? 'dark' : 'light');
+      });
+    }
+
+    window.depegTheme = { applyTheme, readStoredTheme };
+  })();
+</script>
 <script defer src="indicators.js"></script>
 <style>
   /* Brand idiom — see github.com/kcolbchain/brand/pages/ */
+    :root {
+    --header-bg: rgba(11, 11, 13, 0.85);
+  }
+
+  [data-theme="light"] {
+    color-scheme: light;
+
+    --bg: #fafaf7;
+    --bg-elev: #ffffff;
+    --line: #deded6;
+
+    --fg: #111113;
+    --fg-muted: #3f3f46;
+    --fg-faint: #71717a;
+
+    --mark: #8a6f00;
+    --mark-soft: rgba(138, 111, 0, 0.12);
+
+    --ok: #16803a;
+    --warn: #9a5b00;
+    --hot: #b42318;
+    --ok-soft: rgba(22, 128, 58, 0.12);
+    --warn-soft: rgba(154, 91, 0, 0.12);
+    --hot-soft: rgba(180, 35, 24, 0.12);
+
+    --header-bg: rgba(250, 250, 247, 0.88);
+  }
+
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --header-bg: rgba(11, 11, 13, 0.85);
+  }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--fg-muted); font-family: var(--font); font-size: var(--t-2); line-height: 1.5; -webkit-font-smoothing: antialiased; }
   a { color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--line); transition: border-color .15s, color .15s; }
   a:hover { color: var(--mark); border-bottom-color: var(--mark); }
 
   /* Header */
-  header { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; padding: var(--s-3) var(--s-4); background: rgba(11, 11, 13, 0.85); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); font-size: var(--t-1); gap: var(--s-3); flex-wrap: wrap; }
+  header { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; padding: var(--s-3) var(--s-4); background: var(--header-bg); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); font-size: var(--t-1); gap: var(--s-3); flex-wrap: wrap; }
   header .wm { color: var(--fg); font-weight: 500; border-bottom: none; }
   header .wm em { color: var(--mark); font-style: normal; font-weight: 700; }
   header nav { display: flex; gap: var(--s-3); align-items: center; flex-wrap: wrap; }
@@ -164,6 +243,7 @@
 <header>
   <a class="wm" href="https://kcolbchain.com"><em>kcolb</em>chain &nbsp;/&nbsp; depeg-monitor</a>
   <nav id="srcChips">
+    <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="false">dark</button>
     <span class="src-chip" data-src="binance"><span class="dot"></span><span class="name">binance</span><span class="age">—</span></span>
     <span class="src-chip" data-src="coinbase"><span class="dot"></span><span class="name">coinbase</span><span class="age">—</span></span>
     <span class="src-chip" data-src="coingecko"><span class="dot"></span><span class="name">coingecko</span><span class="age">—</span></span>
@@ -1207,6 +1287,24 @@ function setView(next) {
   if (view === 'individual') drawAllCardCharts();
 }
 
+function setTheme(next, persist = true) {
+  if (window.depegTheme && typeof window.depegTheme.applyTheme === 'function') {
+    window.depegTheme.applyTheme(next, persist);
+    return;
+  }
+  document.documentElement.dataset.theme = next;
+  if (persist) {
+    try {
+      localStorage.setItem('depeg-monitor-theme', next);
+    } catch {}
+  }
+}
+
+function toggleTheme() {
+  const current = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+  setTheme(current === 'dark' ? 'light' : 'dark');
+}
+
 function applyCoins() {
   activeCoins = parseCoinsInput();
   document.getElementById('coinsMeta').textContent = `${activeCoins.length} tracked`;
@@ -1254,6 +1352,8 @@ function boot() {
   document.getElementById('pollSec').addEventListener('change', scheduleAll);
   document.getElementById('warnBps').addEventListener('change', () => { if (view === 'joint') drawJointChart(); else drawAllCardCharts(); });
   document.getElementById('critBps').addEventListener('change', () => { if (view === 'joint') drawJointChart(); else drawAllCardCharts(); detectAllEvents(); });
+  document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+  setTheme(document.documentElement.dataset.theme || 'light', false);
   document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
   document.querySelectorAll('#viewSeg button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
   document.querySelectorAll('#streamSeg button').forEach(b => b.addEventListener('click', () => setStream(b.dataset.stream)));
