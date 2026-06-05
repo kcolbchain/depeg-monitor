@@ -17,7 +17,7 @@ python3 -m http.server -d web 8080
 | Section | What it shows |
 |---|---|
 | **header** | Wordmark + per-source status chips (`binance` / `coinbase` / `coingecko`) showing freshness and any rate-limit backoff. |
-| **controls** | Coin list, warn/critical (bps), refresh interval (s), `live / 1d / 7d / 30d / 90d / 1y` mode, `individual / joint` view. |
+| **controls** | Coin list, warn/critical (bps), refresh interval (s), dark/light theme toggle, `live / 1d / 7d / 30d / 90d / 1y` mode, `individual / joint` view. |
 | **indicators** | Checkbox row of pre-built overlays (EWMA, Bollinger upper/lower, volatility, drawdown, cross-source divergence). Toggle anytime. |
 | **joint chart** *(joint view)* | Big multi-coin SVG time series. |
 | **coins** | Per-coin cards. In `individual` view each card has its own full chart with active indicators overlaid; in `joint` view the per-card chart hides and the joint chart takes the stage. |

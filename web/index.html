@@ -18,12 +18,15 @@
   a:hover { color: var(--mark); border-bottom-color: var(--mark); }
 
   /* Header */
-  header { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; padding: var(--s-3) var(--s-4); background: rgba(11, 11, 13, 0.85); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); font-size: var(--t-1); gap: var(--s-3); flex-wrap: wrap; }
+  header { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; padding: var(--s-3) var(--s-4); background: var(--header-bg); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); font-size: var(--t-1); gap: var(--s-3); flex-wrap: wrap; }
   header .wm { color: var(--fg); font-weight: 500; border-bottom: none; }
   header .wm em { color: var(--mark); font-style: normal; font-weight: 700; }
   header nav { display: flex; gap: var(--s-3); align-items: center; flex-wrap: wrap; }
   header nav a { color: var(--fg-faint); border-bottom: none; }
   header nav a:hover { color: var(--fg); border-bottom: none; }
+  .theme-toggle { white-space: nowrap; }
+  .theme-toggle::before { content: '☾'; }
+  body.theme-light .theme-toggle::before { content: '☀'; }
 
   /* Layout */
   main { max-width: var(--col); margin: 0 auto; padding: var(--s-5) var(--s-4) var(--s-6); }
@@ -168,6 +171,7 @@
     <span class="src-chip" data-src="coinbase"><span class="dot"></span><span class="name">coinbase</span><span class="age">—</span></span>
     <span class="src-chip" data-src="coingecko"><span class="dot"></span><span class="name">coingecko</span><span class="age">—</span></span>
     <span class="src-chip" data-src="jupiter"><span class="dot"></span><span class="name">jupiter</span><span class="age">—</span></span>
+    <button class="btn ghost theme-toggle" id="themeToggle" type="button" aria-pressed="false"> theme</button>
     <a href="https://github.com/kcolbchain/depeg-monitor/blob/main/docs/DEPEG_ORACLES.md">oracles</a>
     <a href="https://github.com/kcolbchain/depeg-monitor">source</a>
     <a href="https://github.com/kcolbchain/brand">brand</a>
@@ -1207,6 +1211,31 @@ function setView(next) {
   if (view === 'individual') drawAllCardCharts();
 }
 
+function preferredTheme() {
+  try {
+    const saved = localStorage.getItem('depegMonitor.theme');
+    if (saved === 'light' || saved === 'dark') return saved;
+  } catch {}
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+function applyTheme(theme) {
+  const isLight = theme === 'light';
+  document.body.classList.toggle('theme-light', isLight);
+  const toggle = document.getElementById('themeToggle');
+  if (toggle) {
+    toggle.setAttribute('aria-pressed', String(isLight));
+    toggle.title = `Switch to ${isLight ? 'dark' : 'light'} mode`;
+    toggle.lastChild.textContent = isLight ? ' light' : ' dark';
+  }
+}
+function setTheme(theme) {
+  if (theme !== 'light' && theme !== 'dark') theme = 'dark';
+  applyTheme(theme);
+  try { localStorage.setItem('depegMonitor.theme', theme); } catch {}
+  if (view === 'joint') drawJointChart();
+  if (view === 'individual') drawAllCardCharts();
+}
+
 function applyCoins() {
   activeCoins = parseCoinsInput();
   document.getElementById('coinsMeta').textContent = `${activeCoins.length} tracked`;
@@ -1242,6 +1271,7 @@ function boot() {
     const saved = localStorage.getItem('depegMonitor.coinsInput');
     if (saved) document.getElementById('coinsInput').value = saved;
   } catch {}
+  applyTheme(preferredTheme());
   setView('individual');
   applyCoins();
   renderIndicatorList();
@@ -1257,6 +1287,9 @@ function boot() {
   document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
   document.querySelectorAll('#viewSeg button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
   document.querySelectorAll('#streamSeg button').forEach(b => b.addEventListener('click', () => setStream(b.dataset.stream)));
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    setTheme(document.body.classList.contains('theme-light') ? 'dark' : 'light');
+  });
 
   document.getElementById('sandboxRun').addEventListener('click', compileSandbox);
   document.getElementById('sandboxClear').addEventListener('click', () => { sandboxFn = null; appendLog('ok', 'sandbox cleared'); if (view === 'individual') drawAllCardCharts(); });

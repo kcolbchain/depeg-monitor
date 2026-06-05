@@ -3,10 +3,12 @@
  * https://github.com/kcolbchain/brand/blob/main/tokens.css
  */
 :root {
+  color-scheme: dark;
   /* Surfaces — near-black, one elevation, hairline borders */
   --bg:        #0b0b0d;
   --bg-elev:   #131316;
   --line:      #1f1f24;
+  --header-bg: rgba(11, 11, 13, 0.85);
 
   /* Type — three weights of grey, nothing more */
   --fg:        #ededf0;
@@ -52,4 +54,26 @@
   --s-usdc: #6aa3e0;
   --s-usdt: #6ec07a;
   --s-dai:  var(--mark);
+}
+
+body.theme-light {
+  color-scheme: light;
+  --bg:        #f7f7f4;
+  --bg-elev:   #ffffff;
+  --line:      #dadad2;
+  --header-bg: rgba(247, 247, 244, 0.85);
+
+  --fg:        #19191d;
+  --fg-muted:  #55555d;
+  --fg-faint:  #797981;
+
+  --mark:      #7a6600;
+  --mark-soft: rgba(122, 102, 0, 0.12);
+
+  --ok:        #237a35;
+  --warn:      #8a6500;
+  --hot:       #ad3333;
+  --ok-soft:   rgba(35, 122, 53, 0.12);
+  --warn-soft: rgba(138, 101, 0, 0.12);
+  --hot-soft:  rgba(173, 51, 51, 0.12);
 }
