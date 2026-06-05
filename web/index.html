@@ -9,6 +9,17 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="tokens.css" />
+<script>
+(() => {
+  try {
+    const saved = localStorage.getItem('depegMonitor.theme');
+    const preferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    document.documentElement.dataset.theme = saved || preferred;
+  } catch {
+    document.documentElement.dataset.theme = 'dark';
+  }
+})();
+</script>
 <script defer src="indicators.js"></script>
 <style>
   /* Brand idiom — see github.com/kcolbchain/brand/pages/ */
@@ -17,13 +28,34 @@
   a { color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--line); transition: border-color .15s, color .15s; }
   a:hover { color: var(--mark); border-bottom-color: var(--mark); }
 
+  :root { --header-bg: rgba(11, 11, 13, 0.85); }
+  :root[data-theme='light'] {
+    --bg: #f4f5f7;
+    --bg-elev: #ffffff;
+    --line: #d9dce3;
+    --fg: #111827;
+    --fg-muted: #525a68;
+    --fg-faint: #7a8190;
+    --mark: #c98d00;
+    --mark-soft: rgba(201, 141, 0, 0.12);
+    --ok: #2f8f53;
+    --warn: #a36b00;
+    --hot: #b64b4b;
+    --ok-soft: rgba(47, 143, 83, 0.12);
+    --warn-soft: rgba(163, 107, 0, 0.12);
+    --hot-soft: rgba(182, 75, 75, 0.12);
+    --header-bg: rgba(244, 245, 247, 0.88);
+  }
+
   /* Header */
-  header { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; padding: var(--s-3) var(--s-4); background: rgba(11, 11, 13, 0.85); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); font-size: var(--t-1); gap: var(--s-3); flex-wrap: wrap; }
+  header { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; padding: var(--s-3) var(--s-4); background: var(--header-bg); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); font-size: var(--t-1); gap: var(--s-3); flex-wrap: wrap; }
   header .wm { color: var(--fg); font-weight: 500; border-bottom: none; }
   header .wm em { color: var(--mark); font-style: normal; font-weight: 700; }
   header nav { display: flex; gap: var(--s-3); align-items: center; flex-wrap: wrap; }
   header nav a { color: var(--fg-faint); border-bottom: none; }
   header nav a:hover { color: var(--fg); border-bottom: none; }
+  header .theme-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg-elev); color: var(--fg-muted); font-family: var(--font); font-size: var(--t-1); cursor: pointer; }
+  header .theme-toggle:hover { color: var(--fg); border-color: var(--fg-muted); }
 
   /* Layout */
   main { max-width: var(--col); margin: 0 auto; padding: var(--s-5) var(--s-4) var(--s-6); }
@@ -168,6 +200,7 @@
     <span class="src-chip" data-src="coinbase"><span class="dot"></span><span class="name">coinbase</span><span class="age">—</span></span>
     <span class="src-chip" data-src="coingecko"><span class="dot"></span><span class="name">coingecko</span><span class="age">—</span></span>
     <span class="src-chip" data-src="jupiter"><span class="dot"></span><span class="name">jupiter</span><span class="age">—</span></span>
+    <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle theme">theme: dark</button>
     <a href="https://github.com/kcolbchain/depeg-monitor/blob/main/docs/DEPEG_ORACLES.md">oracles</a>
     <a href="https://github.com/kcolbchain/depeg-monitor">source</a>
     <a href="https://github.com/kcolbchain/brand">brand</a>
@@ -1232,11 +1265,39 @@ function appendLog(level, msg) {
   while (ul.children.length > 100) ul.removeChild(ul.lastChild);
 }
 
+function getTheme() {
+  try {
+    return document.documentElement.dataset.theme || localStorage.getItem('depegMonitor.theme') || 'dark';
+  } catch {
+    return document.documentElement.dataset.theme || 'dark';
+  }
+}
+
+function renderThemeButton() {
+  const btn = document.getElementById('themeToggle');
+  if (!btn) return;
+  const theme = getTheme();
+  btn.textContent = theme === 'light' ? 'theme: light' : 'theme: dark';
+  btn.setAttribute('aria-pressed', String(theme === 'light'));
+}
+
+function setTheme(next) {
+  const theme = next === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem('depegMonitor.theme', theme); } catch {}
+  renderThemeButton();
+}
+
+function toggleTheme() {
+  setTheme(getTheme() === 'light' ? 'dark' : 'light');
+}
+
 // ============================================================================
 // Boot
 // ============================================================================
 function boot() {
   document.getElementById('bootTs').textContent = new Date().toLocaleTimeString();
+  renderThemeButton();
   // Restore the user's coin textarea from a prior session before parsing.
   try {
     const saved = localStorage.getItem('depegMonitor.coinsInput');
@@ -1257,6 +1318,7 @@ function boot() {
   document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
   document.querySelectorAll('#viewSeg button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
   document.querySelectorAll('#streamSeg button').forEach(b => b.addEventListener('click', () => setStream(b.dataset.stream)));
+  document.getElementById('themeToggle').addEventListener('click', toggleTheme);
 
   document.getElementById('sandboxRun').addEventListener('click', compileSandbox);
   document.getElementById('sandboxClear').addEventListener('click', () => { sandboxFn = null; appendLog('ok', 'sandbox cleared'); if (view === 'individual') drawAllCardCharts(); });
