@@ -72,8 +72,7 @@ def run_observer_loop(observe_fn, output: str = "stdout", interval: int = 60):
             print(line, file=sys.stderr, flush=True)
         else:
             with open(output, "a") as f:
-                f.write(line + "
-")
+                f.write(line + "\n")
         time.sleep(interval)
 
 

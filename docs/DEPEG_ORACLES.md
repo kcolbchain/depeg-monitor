@@ -6,8 +6,9 @@ signal — an alternative to closed, paywalled stablecoin-risk dashboards.
 
 > Status: draft 0.1. The wire format below is implemented by the
 > `depeg-monitor` Python library and the in-browser dashboard ships an
-> observer mode. The aggregation layer (multi-observer consensus, on-chain
-> attestation) is sketched here but not yet implemented.
+> observer mode. The aggregation layer now has a reference CLI for
+> multi-observer consensus; on-chain attestation remains sketched here but
+> not yet implemented.
 
 ## Why
 
@@ -115,6 +116,36 @@ GIVEN observations O_1 .. O_N for the same (coin, peg) within a 60s window:
 The aggregator's output is itself a verifiable artifact: anyone with the N
 raw observations can recompute the quorum view exactly.
 
+The reference CLI accepts a YAML feed allowlist or repeated `--feed` entries,
+tails each JSONL source once, verifies Ed25519 signatures, drops observations
+whose claimed median diverges from the recomputed source median by more than
+5 bps, and writes both consensus JSONL and a sidecar manifest of input hashes:
+
+```bash
+depeg-monitor aggregator run --feeds config/observers.yaml \
+    --window-seconds 60 --quorum-ratio 0.66 \
+    --out ./consensus.jsonl
+```
+
+Example feed config:
+
+```yaml
+observers:
+  - observer_id: did:web:example.com:obs-01
+    observer_pubkey: ed25519:ab12...
+    source: ./observations/obs-01.jsonl
+```
+
+You can also pass feeds directly:
+
+```bash
+depeg-monitor aggregator run \
+    --feed did:web:example.com:obs-01,ed25519:ab12...,./obs-01.jsonl \
+    --feed did:web:example.com:obs-02,ed25519:cd34...,./obs-02.jsonl \
+    --feed did:web:example.com:obs-03,ed25519:ef56...,./obs-03.jsonl \
+    --out ./consensus.jsonl
+```
+
 ## Trust model
 
 | Property | Guarantee |
@@ -214,7 +245,7 @@ layer and let real usage shape the answers.
 | JSONL file output | not yet implemented |
 | IPFS/IPNS publish | not yet implemented |
 | On-chain anchoring | not yet implemented |
-| Aggregator reference implementation | not yet implemented |
+| Aggregator reference implementation | available via `depeg-monitor aggregator run` |
 
 If you want to claim any of the above, [open an
 issue](https://github.com/kcolbchain/depeg-monitor/issues/new) and stake

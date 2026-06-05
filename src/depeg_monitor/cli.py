@@ -113,6 +113,10 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] == "history":
         cmd_history(sys.argv[2:])
         return
+    if len(sys.argv) > 2 and sys.argv[1:3] == ["aggregator", "run"]:
+        from .aggregator import run_aggregator_cli
+        run_aggregator_cli(sys.argv[3:])
+        return
 
     config_path = "config/default.yaml"
     for i, arg in enumerate(sys.argv):
