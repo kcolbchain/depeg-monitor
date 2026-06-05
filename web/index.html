@@ -100,6 +100,11 @@
   svg .warn { stroke: var(--warn); stroke-dasharray: 2 4; opacity: 0.4; }
   svg .hot  { stroke: var(--hot);  stroke-dasharray: 2 4; opacity: 0.4; }
   svg .axis-label { font-family: var(--font); font-size: 9px; fill: var(--fg-faint); }
+  svg .zoom-rect { fill: var(--mark); opacity: 0.16; pointer-events: none; }
+  .chart.zoomed { border-color: var(--mark); }
+  .zoom-reset { display: none; }
+  .chart.zoomed .zoom-reset, .card.zoomed .zoom-reset { display: inline-flex; }
+  .card .zoom-reset { align-self: flex-start; margin-top: 2px; padding: 3px 8px; font-size: var(--t-1); }
 
   /* Cards */
   .grid { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
@@ -240,6 +245,7 @@
       <div class="chart-head">
         <h3 id="chartTitle">live · last N ticks</h3>
         <div class="legend" id="legend"></div>
+        <button class="btn ghost zoom-reset" type="button" id="jointZoomReset">reset zoom</button>
       </div>
       <svg class="ts" id="tsChart" viewBox="0 0 800 280" preserveAspectRatio="none"></svg>
     </div>
@@ -392,6 +398,7 @@ let view = 'individual';
 let activeIndicators = new Set();
 let sandboxFn = null;
 let lastObservations = [];
+const chartZoomRanges = {}; // { joint|SYM: { startT, endT } }
 
 // Per-source poll state — independent intervals + cooldown on 429.
 const POLL = {
@@ -718,16 +725,123 @@ function makeChartCtx(width, height, padL, padR, padT, padB, visualRange) {
       const usable = width - padL - padR;
       return padL + (n <= 1 ? 0 : (i / (n - 1)) * usable);
     },
+    xSVGFromT(t, startT, endT) {
+      const usable = width - padL - padR;
+      if (!Number.isFinite(startT) || !Number.isFinite(endT) || endT <= startT) return padL;
+      return padL + ((t - startT) / (endT - startT)) * usable;
+    },
+    tFromX(x, startT, endT) {
+      const usable = width - padL - padR;
+      const pct = Math.max(0, Math.min(1, (x - padL) / usable));
+      return startT + pct * (endT - startT);
+    },
   };
 }
 
-function pathFromBpsSeries(bpsSeries, ctx) {
+function pathFromBpsSeries(bpsSeries, ctx, xDomain) {
   const n = bpsSeries.length;
   return bpsSeries.map((p, i) => {
-    const x = ctx.xSVG(i, n).toFixed(2);
+    const x = xDomain ? ctx.xSVGFromT(p.t, xDomain.startT, xDomain.endT).toFixed(2) : ctx.xSVG(i, n).toFixed(2);
     const y = ctx.ySVG(Number.isFinite(p.value) ? p.value : 0).toFixed(2);
     return (i === 0 ? 'M' : 'L') + ' ' + x + ' ' + y;
   }).join(' ');
+}
+
+function seriesDomain(seriesList) {
+  let startT = Infinity;
+  let endT = -Infinity;
+  for (const series of seriesList) {
+    for (const p of series) {
+      if (!Number.isFinite(p.t)) continue;
+      if (p.t < startT) startT = p.t;
+      if (p.t > endT) endT = p.t;
+    }
+  }
+  return Number.isFinite(startT) && Number.isFinite(endT) && endT > startT ? { startT, endT } : null;
+}
+
+function normalizeRange(range) {
+  if (!range) return null;
+  const startT = Math.min(range.startT, range.endT);
+  const endT = Math.max(range.startT, range.endT);
+  return Number.isFinite(startT) && Number.isFinite(endT) && endT > startT ? { startT, endT } : null;
+}
+
+function filterSeriesByRange(series, range) {
+  const r = normalizeRange(range);
+  if (!r) return series;
+  return series.filter(p => p.t >= r.startT && p.t <= r.endT);
+}
+
+function redrawChartsForKey(key) {
+  if (key === 'joint') drawJointChart();
+  else {
+    const svg = document.querySelector(`.card[data-symbol="${key}"] svg.card-chart`);
+    if (svg) drawCardChart(key, svg);
+  }
+}
+
+function setChartZoom(key, range) {
+  const r = normalizeRange(range);
+  if (r) chartZoomRanges[key] = r;
+  else delete chartZoomRanges[key];
+  redrawChartsForKey(key);
+}
+
+function installChartZoom(svg, key, ctx, domain) {
+  if (!svg || !domain) return;
+  let startX = null;
+  let pointerId = null;
+  let rect = null;
+  const minPx = 8;
+  const clearDraft = () => {
+    startX = null;
+    pointerId = null;
+    rect?.remove();
+    rect = null;
+  };
+  const localX = (ev) => {
+    const box = svg.getBoundingClientRect();
+    const scale = ctx.width / Math.max(1, box.width);
+    return Math.max(ctx.padL, Math.min(ctx.width - ctx.padR, (ev.clientX - box.left) * scale));
+  };
+  svg.onpointerdown = (ev) => {
+    if (ev.button !== undefined && ev.button !== 0) return;
+    startX = localX(ev);
+    pointerId = ev.pointerId;
+    svg.setPointerCapture?.(pointerId);
+    rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('class', 'zoom-rect');
+    rect.setAttribute('y', String(ctx.padT));
+    rect.setAttribute('height', String(ctx.height - ctx.padT - ctx.padB));
+    rect.setAttribute('x', String(startX));
+    rect.setAttribute('width', '0');
+    svg.appendChild(rect);
+    ev.preventDefault();
+  };
+  svg.onpointermove = (ev) => {
+    if (startX == null || (pointerId != null && ev.pointerId !== pointerId)) return;
+    const x = localX(ev);
+    rect?.setAttribute('x', String(Math.min(startX, x)));
+    rect?.setAttribute('width', String(Math.abs(x - startX)));
+  };
+  svg.onpointerup = (ev) => {
+    if (startX == null || (pointerId != null && ev.pointerId !== pointerId)) return;
+    const endX = localX(ev);
+    const from = startX;
+    clearDraft();
+    if (Math.abs(endX - from) < minPx) return;
+    setChartZoom(key, { startT: ctx.tFromX(from, domain.startT, domain.endT), endT: ctx.tFromX(endX, domain.startT, domain.endT) });
+  };
+  svg.onpointercancel = clearDraft;
+  svg.ontouchmove = (ev) => { if (startX != null) ev.preventDefault(); };
+  svg.tabIndex = 0;
+  svg.onkeydown = (ev) => {
+    if (ev.key === 'Escape') {
+      clearDraft();
+      setChartZoom(key, null);
+    }
+  };
 }
 
 // Compute the absolute-bps Y range for a chart given one or more bps series.
@@ -824,17 +938,22 @@ function drawJointChart() {
     const peg = COIN_REGISTRY[sym].peg;
     seriesByCoin.push({ sym, bps: raw.map(p => ({ t: p.t, value: bpsFromPeg(p.price, peg) })) });
   }
+  const fullDomain = seriesDomain(seriesByCoin.map(s => s.bps));
+  const activeRange = normalizeRange(chartZoomRanges.joint);
+  const visibleSeriesByCoin = activeRange ? seriesByCoin.map(s => ({ ...s, bps: filterSeriesByRange(s.bps, activeRange) })) : seriesByCoin;
   const warnBps = parseFloat(document.getElementById('warnBps').value);
   // Joint chart floor at warn so the guide band is always visible.
-  const visualRange = autoYRange(seriesByCoin.map(s => s.bps), { min: warnBps * 1.5 });
+  const visualRange = autoYRange(visibleSeriesByCoin.map(s => s.bps), { min: warnBps * 1.5 });
   const ctx = makeChartCtx(800, 320, 40, 8, 12, 18, visualRange);
   svg.setAttribute('viewBox', `0 0 ${ctx.width} ${ctx.height}`);
   const parts = [guideLines(ctx), axisLabels(ctx)];
-  for (const { sym, bps } of seriesByCoin) {
-    const d = pathFromBpsSeries(bps, ctx);
+  for (const { sym, bps } of visibleSeriesByCoin) {
+    const d = pathFromBpsSeries(bps, ctx, activeRange || fullDomain);
     parts.push(`<path class="series" stroke="${COIN_REGISTRY[sym].color}" d="${d}" />`);
   }
   svg.innerHTML = parts.join('');
+  svg.closest('.chart')?.classList.toggle('zoomed', Boolean(activeRange));
+  installChartZoom(svg, 'joint', ctx, activeRange || fullDomain);
 }
 
 function drawCardChart(sym, svg) {
@@ -844,21 +963,27 @@ function drawCardChart(sym, svg) {
   if (series.length < 1) { svg.innerHTML = ''; return; }
   const bpsSeries = series.map(p => ({ t: p.t, value: bpsFromPeg(p.price, peg) }));
   const indicators = computeIndicatorsForSeries(sym, series);
+  const fullDomain = seriesDomain([bpsSeries]);
+  const activeRange = normalizeRange(chartZoomRanges[sym]);
+  const visibleBpsSeries = filterSeriesByRange(bpsSeries, activeRange);
+  const visibleIndicators = indicators.map(ind => ({ ...ind, series: filterSeriesByRange(ind.series, activeRange) }));
   // Auto-fit Y to whichever is wider: the price series or any active indicator.
   // 5 bps floor keeps stable coins from collapsing the chart to a single line.
-  const visualRange = autoYRange([bpsSeries, ...indicators.map(i => i.series)], { min: 5 });
+  const visualRange = autoYRange([visibleBpsSeries, ...visibleIndicators.map(i => i.series)], { min: 5 });
   const ctx = makeChartCtx(400, 220, 32, 6, 8, 14, visualRange);
   svg.setAttribute('viewBox', `0 0 ${ctx.width} ${ctx.height}`);
   const parts = [guideLines(ctx), axisLabels(ctx)];
   // Underlay: indicators (so the price line sits on top)
-  for (const ind of indicators) {
-    const d = pathFromBpsSeries(ind.series, ctx);
+  for (const ind of visibleIndicators) {
+    const d = pathFromBpsSeries(ind.series, ctx, activeRange || fullDomain);
     parts.push(`<path class="indicator ${ind.style === 'dashed' ? 'dashed' : ''}" stroke="${ind.color}" d="${d}" />`);
   }
   // Overlay: the price line, in the coin's color
-  const dMain = pathFromBpsSeries(bpsSeries, ctx);
+  const dMain = pathFromBpsSeries(visibleBpsSeries, ctx, activeRange || fullDomain);
   parts.push(`<path class="series" stroke="${COIN_REGISTRY[sym].color}" d="${dMain}" />`);
   svg.innerHTML = parts.join('');
+  svg.closest('.card')?.classList.toggle('zoomed', Boolean(activeRange));
+  installChartZoom(svg, sym, ctx, activeRange || fullDomain);
 
   // Update indicator legend below the chart
   const card = svg.closest('.card');
@@ -901,6 +1026,7 @@ function renderCards() {
       <div class="metric" data-role="price">—</div>
       <div class="delta" data-role="delta">— bps vs $${c.peg.toFixed(2)}</div>
       <div class="card-chart-wrap"><svg class="card-chart" preserveAspectRatio="none"></svg></div>
+      <button class="btn ghost zoom-reset" type="button" data-role="zoom-reset">reset zoom</button>
       <div class="ind-legend"></div>
       <div class="sources">
         <span class="src">binance</span>  <span class="val" data-src="binance">—</span>
@@ -910,6 +1036,9 @@ function renderCards() {
       </div>
     </div>`;
   }).join('');
+  grid.querySelectorAll('[data-role="zoom-reset"]').forEach(btn => {
+    btn.addEventListener('click', () => setChartZoom(btn.closest('.card').dataset.symbol, null));
+  });
 }
 function setStatusChip(el, sev) {
   el.className = 'chip ' + sev;
@@ -1174,9 +1303,19 @@ function renderEvents(events) {
       <td class="num">$${e.peakPrice.toFixed(4)}</td>
       <td class="num ${sev}">${fmtBps(e.peakBps)}</td>
       <td>${durStr}</td>
-      <td></td>
+      <td><button class="btn ghost" type="button" data-zoom-sym="${e.sym}" data-start="${e.firstT}" data-end="${e.recoveredT || e.lastT || e.firstT}">view →</button></td>
     </tr>`;
   }).join('');
+  body.querySelectorAll('[data-zoom-sym]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const start = Number(btn.dataset.start);
+      const end = Number(btn.dataset.end);
+      const pad = Math.max(60000, (end - start) * 0.2);
+      setChartZoom('joint', { startT: start - pad, endT: end + pad });
+      setChartZoom(btn.dataset.zoomSym, { startT: start - pad, endT: end + pad });
+      document.getElementById('tsChart')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  });
 }
 
 // ============================================================================
@@ -1201,6 +1340,7 @@ function setMode(next) {
   mode = next;
   document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === next));
   if (next === 'live') {
+    Object.keys(chartZoomRanges).forEach(k => delete chartZoomRanges[k]);
     document.getElementById('chartTitle').textContent = `live · last ${WINDOW} ticks`;
     document.getElementById('chartMeta').textContent = '';
     scheduleAll();
@@ -1252,6 +1392,7 @@ function appendLog(level, msg) {
 // ============================================================================
 function boot() {
   document.getElementById('bootTs').textContent = new Date().toLocaleTimeString();
+  document.getElementById('jointZoomReset')?.addEventListener('click', () => setChartZoom('joint', null));
 
   // Theme toggle logic
   const themeToggle = document.getElementById('themeToggle');
