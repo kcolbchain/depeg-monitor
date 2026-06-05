@@ -51,5 +51,150 @@
   /* Data series — desaturated issuer palette, see brand/pages/charts.html */
   --s-usdc: #6aa3e0;
   --s-usdt: #6ec07a;
-  --s-dai:  var(--mark);
+  --s-dai:  #f5e03a;
+  --s-fdusd: #d9a05b;
+  --s-pyusd: #4f9dd8;
+  --s-usde: #a9b0c0;
+  --s-frax: #d77a7a;
+  --s-crvusd: #b58fd6;
+  --s-gho: #7ec4b6;
+  --s-lusd: #cda674;
+  --s-tusd: #7b9bcc;
+  --s-usdp: #c39073;
+  --s-gusd: #5fb7c2;
+  --s-usdd: #a8d39c;
+  --s-susd: #9080c8;
+  --s-rlusd: #7fb0e0;
+  --s-usds: #c8b870;
+  --s-usd0: #8fd6c0;
+  --s-sdai: #e0c25a;
+  --s-ageur: #6b95d6;
+
+  /* Custom colors */
+  --s-cust1: #d77a7a;
+  --s-cust2: #6aa3e0;
+  --s-cust3: #7ec4b6;
+  --s-cust4: #d9a05b;
+  --s-cust5: #9080c8;
+  --s-cust6: #5fb7c2;
+  --s-cust7: #cda674;
+
+  /* Indicator colors */
+  --ind-ewma: #a9b0c0;
+  --ind-bollinger: #b58fd6;
+  --ind-volatility: #cda674;
+  --ind-drawdown: #d77a7a;
+  --ind-divergence: #7ec4b6;
+
+  /* Header & Button Hover */
+  --header-bg: rgba(11, 11, 13, 0.85);
+  --mark-hover: #fde879;
+}
+
+html[data-theme="dark"] {
+  --bg:        #0b0b0d;
+  --bg-elev:   #131316;
+  --line:      #1f1f24;
+  --fg:        #ededf0;
+  --fg-muted:  #8a8a92;
+  --fg-faint:  #5a5a62;
+  --mark:      #f5e03a;
+  --mark-soft: rgba(245, 224, 58, 0.14);
+  --ok:        #6ec07a;
+  --warn:      #d8b04d;
+  --hot:       #d97171;
+  --ok-soft:   rgba(110, 192, 122, 0.14);
+  --warn-soft: rgba(216, 176, 77, 0.14);
+  --hot-soft:  rgba(217, 113, 113, 0.14);
+  --header-bg: rgba(11, 11, 13, 0.85);
+  --mark-hover: #fde879;
+
+  --s-usdc: #6aa3e0;
+  --s-usdt: #6ec07a;
+  --s-dai:  #f5e03a;
+  --s-fdusd: #d9a05b;
+  --s-pyusd: #4f9dd8;
+  --s-usde: #a9b0c0;
+  --s-frax: #d77a7a;
+  --s-crvusd: #b58fd6;
+  --s-gho: #7ec4b6;
+  --s-lusd: #cda674;
+  --s-tusd: #7b9bcc;
+  --s-usdp: #c39073;
+  --s-gusd: #5fb7c2;
+  --s-usdd: #a8d39c;
+  --s-susd: #9080c8;
+  --s-rlusd: #7fb0e0;
+  --s-usds: #c8b870;
+  --s-usd0: #8fd6c0;
+  --s-sdai: #e0c25a;
+  --s-ageur: #6b95d6;
+
+  --s-cust1: #d77a7a;
+  --s-cust2: #6aa3e0;
+  --s-cust3: #7ec4b6;
+  --s-cust4: #d9a05b;
+  --s-cust5: #9080c8;
+  --s-cust6: #5fb7c2;
+  --s-cust7: #cda674;
+
+  --ind-ewma: #a9b0c0;
+  --ind-bollinger: #b58fd6;
+  --ind-volatility: #cda674;
+  --ind-drawdown: #d77a7a;
+  --ind-divergence: #7ec4b6;
+}
+
+html[data-theme="light"] {
+  --bg:        #ffffff;
+  --bg-elev:   #f4f4f6;
+  --line:      #e1e1e6;
+  --fg:        #131316;
+  --fg-muted:  #5a5a62;
+  --fg-faint:  #8a8a92;
+  --mark:      #c5a300;
+  --mark-soft: rgba(197, 163, 0, 0.12);
+  --ok:        #2e7d32;
+  --warn:      #b26a00;
+  --hot:       #c62828;
+  --ok-soft:   rgba(46, 125, 50, 0.12);
+  --warn-soft: rgba(178, 106, 0, 0.12);
+  --hot-soft:  rgba(198, 40, 40, 0.12);
+  --header-bg: rgba(255, 255, 255, 0.85);
+  --mark-hover: #b09100;
+
+  --s-usdc: #1d63b8;
+  --s-usdt: #2e7d32;
+  --s-dai:  #b09100;
+  --s-fdusd: #b26a00;
+  --s-pyusd: #1976d2;
+  --s-usde: #5a6270;
+  --s-frax: #c62828;
+  --s-crvusd: #7b1fa2;
+  --s-gho: #00796b;
+  --s-lusd: #8d6e63;
+  --s-tusd: #1565c0;
+  --s-usdp: #a1887f;
+  --s-gusd: #00838f;
+  --s-usdd: #558b2f;
+  --s-susd: #673ab7;
+  --s-rlusd: #0277bd;
+  --s-usds: #9e9d24;
+  --s-usd0: #00695c;
+  --s-sdai: #f57f17;
+  --s-ageur: #283593;
+
+  --s-cust1: #c62828;
+  --s-cust2: #1d63b8;
+  --s-cust3: #00796b;
+  --s-cust4: #b26a00;
+  --s-cust5: #673ab7;
+  --s-cust6: #00838f;
+  --s-cust7: #8d6e63;
+
+  --ind-ewma: #5a6270;
+  --ind-bollinger: #7b1fa2;
+  --ind-volatility: #8d6e63;
+  --ind-drawdown: #c62828;
+  --ind-divergence: #00796b;
 }
