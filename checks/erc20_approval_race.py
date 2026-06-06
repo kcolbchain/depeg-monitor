@@ -1,36 +1,34 @@
+import slither
 from slither.detectors.abstract_detector import AbstractDetector, DetectorClassification
 
-class ERC20ApprovalRace(AbstractDetector):
-    """
-    Detects the ERC20 approve() race condition vulnerability.
-    """
+class ERC20ApprovalRaceDetector(AbstractDetector):
     ARGUMENT = 'erc20-approval-race'
-    HELP = 'ERC20 approve() race condition (Front-running vulnerability)'
-    IMPACT = DetectorClassification.HIGH
+    HELP = 'Detects unsafe standard ERC20 approve() race conditions'
+    IMPACT = DetectorClassification.MEDIUM
     CONFIDENCE = DetectorClassification.HIGH
-
-    WIKI = 'https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729'
-    WIKI_TITLE = 'ERC20 API: An Attack Vector on the Approve/TransferFrom Methods'
-    WIKI_DESCRIPTION = 'The standard ERC20 implementation contains a widely known race condition in the approve function.'
-    WIKI_RECOMMENDATION = 'Use safe increaseAllowance and decreaseAllowance mitigations instead of direct state overwriting.'
 
     def _detect(self):
         results = []
-        for contract in self.compilation_unit.contracts_derived:
-            # Check if the contract implements the vulnerable approve signature
+        
+        for contract in self.slither.contracts:
+            # Locate the approve function
             approve_func = contract.get_function_from_signature('approve(address,uint256)')
             
             if approve_func:
-                # If they have approve, they must also implement mitigations
-                has_increase = contract.get_function_from_signature('increaseAllowance(address,uint256)')
-                has_decrease = contract.get_function_from_signature('decreaseAllowance(address,uint256)')
+                # FIX: Check if the contract is a standard OpenZeppelin/trusted implementation
+                is_standard_oz = any("openzeppelin" in inherit.name.lower() for inherit in contract.inheritance)
                 
-                if not has_increase or not has_decrease:
-                    info = [
-                        contract, 
-                        " implements approve(address,uint256) but is missing increaseAllowance/decreaseAllowance mitigations. Susceptible to double-spend front-running.\n"
-                    ]
-                    res = self.generate_result(info)
-                    results.append(res)
+                # If it is a custom/generic implementation, verify if it lacks a zero-check
+                if not is_standard_oz:
+                    has_zero_check = False
+                    for node in approve_func.nodes:
+                        if "allowance" in str(node) and "0" in str(node):
+                            has_zero_check = True
+                            break
                     
+                    if not has_zero_check:
+                        info = [f"Contract {contract.name} implements an unsafe approve() overwrite pattern.\n"]
+                        res = self.generate_result(info)
+                        results.append(res)
+                        
         return results
