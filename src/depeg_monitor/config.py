@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+import math
 from typing import Optional
+
+from pydantic import BaseModel, field_validator, model_validator
 
 
 class StablecoinConfig(BaseModel):
@@ -11,6 +13,25 @@ class StablecoinConfig(BaseModel):
     peg: float = 1.0
     warn_threshold: float = 0.005
     critical_threshold: float = 0.01
+
+    @field_validator("peg", "warn_threshold", "critical_threshold")
+    @classmethod
+    def values_must_be_finite(cls, value: float) -> float:
+        if not math.isfinite(value):
+            raise ValueError("threshold and peg values must be finite")
+        return value
+
+    @model_validator(mode="after")
+    def thresholds_must_be_ordered(self) -> "StablecoinConfig":
+        if self.peg <= 0:
+            raise ValueError("peg must be positive")
+        if self.warn_threshold < 0:
+            raise ValueError("warn_threshold must be non-negative")
+        if self.critical_threshold < 0:
+            raise ValueError("critical_threshold must be non-negative")
+        if self.critical_threshold < self.warn_threshold:
+            raise ValueError("critical_threshold must be greater than or equal to warn_threshold")
+        return self
 
 
 class DexSourceConfig(BaseModel):
@@ -42,3 +63,10 @@ class MonitorConfig(BaseModel):
     sources: SourcesConfig = SourcesConfig()
     alerts: AlertsConfig = AlertsConfig()
     interval_seconds: int = 30
+
+    @field_validator("interval_seconds")
+    @classmethod
+    def interval_must_be_positive(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("interval_seconds must be positive")
+        return value
