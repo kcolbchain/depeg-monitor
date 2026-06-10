@@ -1,5 +1,7 @@
 # depeg-monitor
 
+[![CI](https://github.com/kcolbchain/depeg-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/kcolbchain/depeg-monitor/actions/workflows/ci.yml)
+
 Real-time stablecoin depeg detection and alerting. By [kcolbchain](https://kcolbchain.com) (est. 2015).
 
 ## Why this exists
