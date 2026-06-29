@@ -88,3 +88,51 @@ class TestCoinbaseSource:
         with patch("depeg_monitor.sources.cex.aiohttp.ClientSession", return_value=session):
             price = await CoinbaseSource().get_price("DAI")
         assert price is None
+
+    @pytest.mark.asyncio
+    async def test_offpeg_price_passes_through_and_triggers_critical(self):
+        """A genuine depeg (0.92) must NOT be filtered like the 0/negative
+        sentinels — it is a positive, finite price the source reports faithfully,
+        and the monitor must classify it as CRITICAL.
+
+        Guards the boundary between "non-positive sentinel → None" (a delisted
+        pair) and "small positive price → real depeg the alert path must see".
+        Wires the *real* CoinbaseSource into a DepegMonitor so the off-peg price
+        flows source → threshold comparator → alert dispatcher end to end.
+        """
+        from depeg_monitor.alerts.base import Alert, AlertLevel
+        from depeg_monitor.config import AlertsConfig, MonitorConfig, StablecoinConfig
+        from depeg_monitor.monitor import DepegMonitor
+
+        class CapturingAlert(Alert):
+            def __init__(self):
+                self.calls = []
+
+            async def send(self, level, symbol, price, peg, source):
+                self.calls.append((level, symbol, price, source))
+
+        session = _mock_aiohttp_session(
+            {"data": {"amount": "0.92", "base": "DAI", "currency": "USD"}}
+        )
+        source = CoinbaseSource()
+        with patch("depeg_monitor.sources.cex.aiohttp.ClientSession", return_value=session):
+            price = await source.get_price("DAI")
+            assert price == pytest.approx(0.92)  # off-peg, but a valid price
+
+            alert = CapturingAlert()
+            monitor = DepegMonitor(
+                MonitorConfig(
+                    stablecoins=[StablecoinConfig(symbol="DAI")],  # 1% critical default
+                    alerts=AlertsConfig(console=False),
+                )
+            )
+            monitor.sources = [source]
+            monitor.alerts = [alert]
+            await monitor.check_once()
+
+        assert len(alert.calls) == 1
+        level, symbol, alert_price, alert_source = alert.calls[0]
+        assert level == AlertLevel.CRITICAL
+        assert symbol == "DAI"
+        assert alert_price == pytest.approx(0.92)
+        assert alert_source == "coinbase"

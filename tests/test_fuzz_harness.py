@@ -34,8 +34,14 @@ def test_fuzz_price_tick_ingestion_never_panics(payload):
     assert tick.timestamp >= 0
 
 
+# A "valid" tick must have a symbol that survives the parser's .strip().upper()
+# normalization — a whitespace-only string normalizes to empty and is rejected,
+# so it is not a valid round-trip input and must be excluded from this strategy.
+valid_symbols = st.text(min_size=1, max_size=12).filter(lambda s: s.strip())
+
+
 @given(
-    symbol=st.text(min_size=1, max_size=12),
+    symbol=valid_symbols,
     source=st.text(max_size=24),
     price=finite_prices,
     timestamp=st.integers(min_value=0, max_value=2**63 - 1),
