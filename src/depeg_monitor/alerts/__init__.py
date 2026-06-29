@@ -4,6 +4,7 @@ from .base import Alert, AlertLevel
 from .console import ConsoleAlert
 from .webhook import WebhookAlert
 from .telegram import TelegramAlert
+from .feed import AlertFeed, Sink, StdoutSink, WebhookSink
 
 __all__ = [
     "Alert",
@@ -11,4 +12,8 @@ __all__ = [
     "ConsoleAlert",
     "WebhookAlert",
     "TelegramAlert",
+    "AlertFeed",
+    "Sink",
+    "StdoutSink",
+    "WebhookSink",
 ]

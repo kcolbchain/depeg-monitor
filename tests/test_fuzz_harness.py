@@ -34,8 +34,15 @@ def test_fuzz_price_tick_ingestion_never_panics(payload):
     assert tick.timestamp >= 0
 
 
+# A *valid* tick must carry a real symbol: parse_price_tick strips and upcases
+# the symbol and rejects anything that strips to empty. Whitespace-only strings
+# (e.g. " ") are therefore not valid ticks, so constrain the round-trip strategy
+# to symbols that survive stripping instead of asserting they round-trip.
+non_blank_symbols = st.text(min_size=1, max_size=12).filter(lambda s: s.strip())
+
+
 @given(
-    symbol=st.text(min_size=1, max_size=12),
+    symbol=non_blank_symbols,
     source=st.text(max_size=24),
     price=finite_prices,
     timestamp=st.integers(min_value=0, max_value=2**63 - 1),

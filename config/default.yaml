@@ -24,4 +24,27 @@ alerts:
   discord_webhook: ""
   slack_webhook: ""
 
+# Multi-source consensus pegging + structured alert feed.
+# When enabled, every source's reading for a coin is aggregated into ONE
+# consensus peg per cycle (robust median, with gross-outlier trimming), scored
+# for agreement across venues, and classified watch/warning/critical. Depeg
+# events are emitted as structured records to the configured sinks instead of
+# one alert per source.
+consensus:
+  enabled: false
+  # Severity thresholds, in basis points of deviation from peg.
+  watch_bps: 25.0
+  warning_bps: 50.0
+  critical_bps: 100.0
+  # Agreement score (0..1) below which venues are treated as disagreeing,
+  # bumping severity by one notch (capped at warning).
+  min_agreement: 0.5
+  # Only emit events at or above this severity: watch | warning | critical.
+  min_emit_severity: watch
+  # Sinks (pluggable):
+  stdout_sink: true
+  stdout_json: false
+  webhook_url: ""
+  webhook_platform: generic  # generic | slack | discord
+
 interval_seconds: 30

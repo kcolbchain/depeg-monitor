@@ -13,9 +13,20 @@ from .alerts.base import Alert, AlertLevel
 from .alerts.console import ConsoleAlert
 from .alerts.webhook import WebhookAlert
 from .alerts.telegram import TelegramAlert
+from .alerts.feed import AlertFeed, Sink, StdoutSink, WebhookSink
+from .consensus import ConsensusThresholds, Severity, SourceReading, compute_consensus
 from .database_alert import DatabaseAlert
+from .events import DepegEvent
 
 logger = logging.getLogger("depeg-monitor")
+
+
+def _severity_floor(name: str) -> Severity:
+    return {
+        "watch": Severity.WATCH,
+        "warning": Severity.WARNING,
+        "critical": Severity.CRITICAL,
+    }.get(name.lower(), Severity.WATCH)
 
 
 class DepegMonitor:
@@ -23,6 +34,8 @@ class DepegMonitor:
         self.config = config
         self.sources = self._build_sources()
         self.alerts = self._build_alerts()
+        self.consensus_thresholds = self._build_consensus_thresholds()
+        self.alert_feed = self._build_alert_feed()
 
     def _build_sources(self) -> list[PriceSource]:
         sources: list[PriceSource] = []
@@ -57,9 +70,64 @@ class DepegMonitor:
             alerts.append(DatabaseAlert(self.config.alerts.db_path))
         return alerts
 
+    def _build_consensus_thresholds(self) -> ConsensusThresholds:
+        c = self.config.consensus
+        return ConsensusThresholds(
+            watch_bps=c.watch_bps,
+            warning_bps=c.warning_bps,
+            critical_bps=c.critical_bps,
+            min_agreement=c.min_agreement,
+        )
+
+    def _build_alert_feed(self) -> AlertFeed:
+        c = self.config.consensus
+        sinks: list[Sink] = []
+        if c.stdout_sink:
+            sinks.append(StdoutSink(as_json=c.stdout_json))
+        if c.webhook_url:
+            sinks.append(WebhookSink(c.webhook_url, platform=c.webhook_platform))
+        return AlertFeed(sinks, min_severity=_severity_floor(c.min_emit_severity))
+
     async def check_once(self) -> None:
         for coin in self.config.stablecoins:
-            await self._check_coin(coin)
+            if self.config.consensus.enabled:
+                await self._check_coin_consensus(coin)
+            else:
+                await self._check_coin(coin)
+
+    async def _gather_readings(self, coin: StablecoinConfig) -> list[SourceReading]:
+        """Collect one reading per source for ``coin`` this cycle.
+
+        Unavailable sources (``get_price`` returns ``None`` or raises) are simply
+        omitted; ``compute_consensus`` then filters non-positive/non-finite
+        prices, so the consensus is built only from venues that genuinely
+        reported a usable price this cycle.
+        """
+        readings: list[SourceReading] = []
+        for source in self.sources:
+            try:
+                price = await source.get_price(coin.symbol)
+            except Exception as exc:
+                logger.debug("source %s failed for %s: %s", source.name, coin.symbol, exc)
+                continue
+            if price is None:
+                continue
+            readings.append(SourceReading(source.name, price))
+        return readings
+
+    async def _check_coin_consensus(self, coin: StablecoinConfig) -> DepegEvent | None:
+        """Aggregate all sources into a consensus peg and publish a depeg event.
+
+        Returns the published :class:`DepegEvent` (useful for tests), or ``None``
+        when there was no data or the consensus was within the healthy band.
+        """
+        readings = await self._gather_readings(coin)
+        result = compute_consensus(coin.symbol, coin.peg, readings, self.consensus_thresholds)
+        if result is None or not result.is_depeg:
+            return None
+        event = DepegEvent.from_consensus(result)
+        published = await self.alert_feed.publish(event)
+        return event if published else None
 
     async def _check_coin(self, coin: StablecoinConfig) -> None:
         for source in self.sources:

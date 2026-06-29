@@ -54,6 +54,50 @@ class AlertsConfig(BaseModel):
     db_path: Optional[str] = None
 
 
+class ConsensusFeedConfig(BaseModel):
+    """Configuration for the multi-source consensus alert feed.
+
+    When ``enabled``, the monitor aggregates every source's reading for a coin
+    into a single consensus peg per cycle and emits a structured depeg event to
+    the configured sinks, instead of (or in addition to) one alert per source.
+    """
+
+    enabled: bool = False
+    # Severity thresholds, in basis points of deviation from peg.
+    watch_bps: float = 25.0
+    warning_bps: float = 50.0
+    critical_bps: float = 100.0
+    # Agreement score (0..1) below which venues are treated as disagreeing,
+    # escalating severity by one notch (capped at warning).
+    min_agreement: float = 0.5
+    # Only publish events at or above this severity:
+    # one of "watch", "warning", "critical".
+    min_emit_severity: str = "watch"
+    # Sinks:
+    stdout_sink: bool = True
+    stdout_json: bool = False
+    webhook_url: Optional[str] = None
+    # "generic", "slack", or "discord" — shapes the webhook body.
+    webhook_platform: str = "generic"
+
+    @field_validator("watch_bps", "warning_bps", "critical_bps", "min_agreement")
+    @classmethod
+    def values_must_be_finite(cls, value: float) -> float:
+        if not math.isfinite(value):
+            raise ValueError("consensus feed numeric values must be finite")
+        return value
+
+    @model_validator(mode="after")
+    def validate_ordering(self) -> "ConsensusFeedConfig":
+        if not (self.watch_bps <= self.warning_bps <= self.critical_bps):
+            raise ValueError("thresholds must satisfy watch_bps <= warning_bps <= critical_bps")
+        if not (0.0 <= self.min_agreement <= 1.0):
+            raise ValueError("min_agreement must be within [0, 1]")
+        if self.min_emit_severity.lower() not in {"watch", "warning", "critical"}:
+            raise ValueError("min_emit_severity must be one of watch/warning/critical")
+        return self
+
+
 class MonitorConfig(BaseModel):
     stablecoins: list[StablecoinConfig] = [
         StablecoinConfig(symbol="USDC"),
@@ -62,6 +106,7 @@ class MonitorConfig(BaseModel):
     ]
     sources: SourcesConfig = SourcesConfig()
     alerts: AlertsConfig = AlertsConfig()
+    consensus: ConsensusFeedConfig = ConsensusFeedConfig()
     interval_seconds: int = 30
 
     @field_validator("interval_seconds")
